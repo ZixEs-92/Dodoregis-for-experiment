@@ -1,0 +1,107 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #181d26;
+}
+
+@theme inline {
+  /* base */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-inter), var(--font-noto-thai), -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* editorial ink/body/muted */
+  --color-ink: #181d26;
+  --color-ink-active: #0d1218;
+  --color-body: #333840;
+  --color-muted: #41454d;
+  --color-hairline: #dddddd;
+  --color-border-strong: #9297a0;
+
+  /* surfaces */
+  --color-canvas: #ffffff;
+  --color-surface-soft: #f8fafc;
+  --color-surface-strong: #e0e2e6;
+  --color-surface-dark: #181d26;
+  --color-surface-dark-elevated: #1d1f25;
+
+  /* signature accents */
+  --color-coral: #aa2d00;
+  --color-coral-soft: #fbe6dd;
+  --color-forest: #0a2e0e;
+  --color-forest-soft: #dcece0;
+  --color-cream: #f5e9d4;
+  --color-peach: #fcab79;
+  --color-peach-soft: #fef1e6;
+  --color-mint: #a8d8c4;
+  --color-mint-soft: #e8f5ef;
+  --color-yellow: #f4d35e;
+  --color-yellow-soft: #fdf4dc;
+  --color-mustard: #d9a441;
+  --color-mustard-soft: #f8ecd8;
+  /* text-on-soft variant: mustard itself fails WCAG 4.5:1 on the soft tints */
+  --color-mustard-deep: #7a5a12;
+
+  /* semantic */
+  --color-link: #1b61c9;
+  --color-link-active: #1a3866;
+  --color-info: #254fad;
+  --color-info-soft: #e4ecfb;
+  --color-info-border: #458fff;
+  --color-success: #006400;
+  --color-success-border: #39bf45;
+
+  /* radius scale */
+  --radius-xs: 2px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+}
+
+body {
+  background: var(--color-surface-soft);
+  color: var(--color-body);
+}
+
+@layer components {
+  .input {
+    @apply w-full bg-canvas border border-hairline rounded-sm px-3.5 h-11 text-[14px] text-ink placeholder:text-muted/60 transition-colors;
+    @apply focus:outline-none focus:border-info-border focus:ring-2 focus:ring-info-border/20;
+  }
+  textarea.input {
+    @apply h-auto py-2.5;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-ink px-6 py-3 text-[14px] font-medium text-white transition-colors hover:bg-ink-active disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-canvas border border-hairline px-6 py-3 text-[14px] font-medium text-ink transition-colors hover:bg-surface-soft disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .btn-sm {
+    @apply px-3.5 py-2 text-[13px];
+  }
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-canvas border border-hairline px-3.5 py-2 text-[13px] font-medium text-coral transition-colors hover:bg-coral-soft disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  .card {
+    @apply bg-canvas border border-hairline rounded-lg;
+  }
+
+  .label-text {
+    @apply text-[13px] font-medium text-body;
+  }
+
+  .chip {
+    @apply inline-flex items-center whitespace-nowrap rounded-sm px-2 py-0.5 text-[12px] font-medium;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}

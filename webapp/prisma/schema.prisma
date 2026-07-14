@@ -1,0 +1,338 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ── Master data ─────────────────────────────────────────────
+// active = false คือ "ปิดใช้งาน" (แทนการลบ เพื่อไม่ให้ record เก่าที่อ้างอิงพัง)
+
+model Department {
+  id       Int           @id @default(autoincrement())
+  name     String        @unique
+  active   Boolean       @default(true)
+  slaDays  Int?          @map("sla_days") // เป้า lead time (วัน) request → ส่งรีพอร์ท สำหรับ TAT/SLA
+  requests TestRequest[]
+}
+
+model Member {
+  id     Int     @id @default(autoincrement())
+  name   String  @unique
+  role   String?
+  active Boolean @default(true)
+
+  ownedItems      TestItem[] @relation("Owner")
+  loadingRuns     TestRun[]  @relation("LoadingOwner")
+  testRuns        TestRun[]  @relation("TestOwner")
+  authoredReports Report[]   @relation("Author")
+  approvedReports Report[]   @relation("Approver")
+}
+
+model PartLocation {
+  id     Int        @id @default(autoincrement())
+  name   String     @unique
+  active Boolean    @default(true)
+  items  TestItem[] @relation("PartLocation")
+}
+
+model FinishedLocation {
+  id     Int        @id @default(autoincrement())
+  name   String     @unique
+  active Boolean    @default(true)
+  items  TestItem[] @relation("FinishedLocation")
+}
+
+// ── Enums ───────────────────────────────────────────────────
+
+enum RequestStatus {
+  S1_RECEIVED // 1-รับใบรีเควส
+  S2_WAIT_PART // 2-รอรับพาร์ท
+  S3_PART_IN // 3-รับพาร์ทแล้ว/รอคิวเทส
+  S4_TESTING // 4-กำลังเทส
+  S5_TEST_DONE // 5-เทสเสร็จ
+  S6_REPORTING // 6-กำลังทำรีพอร์ท
+  S7_SENT // 7-ส่งรีพอร์ทแล้ว
+  S8_CLOSED // 8-ปิดงาน
+  S9_HOLD // 9-Hold
+  S10_CANCEL // 10-Cancel
+}
+
+enum RunResult {
+  PASS
+  FAIL
+  CONDITIONAL_PASS
+}
+
+enum ReportStatus {
+  NOT_STARTED // ยังไม่เริ่ม
+  IN_PROGRESS // กำลังทำ
+  PENDING_APPROVAL // รออนุมัติ
+  SENT // ส่งแล้ว
+}
+
+enum AttachmentKind {
+  REQUEST_DOC // ใบรีเควส
+  EMAIL // อีเมล
+  PHOTO // รูปชิ้นงาน
+  TEST_SPEC // สเปค/มาตรฐานการทดสอบ
+  OTHER // อื่นๆ
+}
+
+enum LocationLogKind {
+  PART_LOCATION // ที่เก็บพาร์ทระหว่างเทส
+  FINISHED_LOCATION // ที่เก็บชิ้นงานหลังเสร็จ
+  RAW_DATA // ที่เก็บ raw data
+}
+
+enum NotificationLevel {
+  INFO
+  WARNING // ใกล้กำหนด
+  CRITICAL // เลยกำหนด
+}
+
+// ── ใบรีเควส (1 แถว = 1 ใบรีเควส, มีได้หลาย item) ─────────────
+
+model TestRequest {
+  regisNo String @id @map("regis_no")
+  seq     Int // running number ต่อเดือน สำหรับออกเลข TR-YYMM-###
+
+  requestDept   Department @relation(fields: [requestDeptId], references: [id])
+  requestDeptId Int        @map("request_dept_id")
+
+  requester   String
+  requestDate DateTime @map("request_date")
+
+  remark    String?
+  folderUrl String? @map("folder_url")
+
+  // groundwork: token สำหรับ requester portal (ดูสถานะแบบอ่านอย่างเดียว) — ยังไม่เปิดใช้
+  publicToken String? @unique @map("public_token")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  items       TestItem[]
+  attachments Attachment[]
+
+  @@map("test_requests")
+}
+
+// ── item (1 แถว = 1 ชิ้นงานที่ต้องทดสอบ มี plan/status/report ของตัวเอง) ──
+
+model TestItem {
+  id       Int    @id @default(autoincrement())
+  regisNo  String @map("regis_no")
+  request  TestRequest @relation(fields: [regisNo], references: [regisNo], onDelete: Cascade)
+  itemNo   Int    @map("item_no") // 1..N ภายในใบรีเควส
+  itemCode String @unique @map("item_code") // TR-YYMM-###-NN ใช้เป็น QR/URL/ชื่อไฟล์
+
+  partName String  @map("part_name")
+  partNo   String? @map("part_no")
+  qty      Int?
+
+  partReceivedDate DateTime?     @map("part_received_date")
+  partLocation     PartLocation? @relation("PartLocation", fields: [partLocationId], references: [id])
+  partLocationId   Int?          @map("part_location_id")
+
+  testDetail String @map("test_detail") // รายละเอียดเทส/มาตรฐาน ของ item นี้
+
+  planStart   DateTime? @map("plan_start")
+  planEnd     DateTime? @map("plan_end")
+  actualStart DateTime? @map("actual_start")
+  actualEnd   DateTime? @map("actual_end")
+
+  status           RequestStatus  @default(S1_RECEIVED)
+  statusBeforeHold RequestStatus? @map("status_before_hold")
+
+  owner   Member @relation("Owner", fields: [ownerId], references: [id])
+  ownerId Int    @map("owner_id")
+
+  finishedPartLocation   FinishedLocation? @relation("FinishedLocation", fields: [finishedPartLocationId], references: [id])
+  finishedPartLocationId Int?              @map("finished_part_location_id")
+
+  rawDataLocation String? @map("raw_data_location")
+  remark          String?
+
+  // groundwork: อ้างอิง test method library (ฟีเจอร์ 6) — ยังไม่ wire UI
+  testMethod   TestMethod? @relation(fields: [testMethodId], references: [id])
+  testMethodId Int?        @map("test_method_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  testRuns      TestRun[]
+  reports       Report[]
+  attachments   Attachment[]
+  statusLogs    StatusLog[]
+  locationLogs  LocationLog[]
+  notifications Notification[]
+
+  @@unique([regisNo, itemNo])
+  @@map("test_items")
+}
+
+model TestRun {
+  id     Int      @id @default(autoincrement())
+  itemId Int      @map("item_id")
+  item   TestItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  runNo Int @map("run_no")
+
+  startDate DateTime? @map("start_date")
+  endDate   DateTime? @map("end_date")
+
+  loadingOwner   Member? @relation("LoadingOwner", fields: [loadingOwnerId], references: [id])
+  loadingOwnerId Int?    @map("loading_owner_id")
+
+  testOwner   Member? @relation("TestOwner", fields: [testOwnerId], references: [id])
+  testOwnerId Int?    @map("test_owner_id")
+
+  result RunResult?
+
+  // groundwork: เครื่องที่ใช้เทส (ฟีเจอร์ 5) — ยังไม่ wire UI
+  equipment   Equipment? @relation(fields: [equipmentId], references: [id])
+  equipmentId Int?       @map("equipment_id")
+
+  rawDataUrl String? @map("rawdata_url")
+  remark     String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([itemId, runNo])
+  @@map("test_runs")
+}
+
+model Report {
+  id     Int      @id @default(autoincrement())
+  itemId Int      @map("item_id")
+  item   TestItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  status ReportStatus @default(NOT_STARTED)
+
+  sentDate  DateTime? @map("sent_date")
+  filePath  String?   @map("file_path")
+  reportUrl String?   @map("report_url")
+
+  author     Member? @relation("Author", fields: [authorId], references: [id])
+  authorId   Int?    @map("author_id")
+  approver   Member? @relation("Approver", fields: [approverId], references: [id])
+  approverId Int?    @map("approver_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("reports")
+}
+
+// ── ไฟล์แนบ (เก็บ metadata ใน DB, ไฟล์จริงอยู่บนดิสก์ หรือเป็นลิงก์ภายนอก) ──
+// แนบได้ระดับใบรีเควส (requestNo) หรือระดับ item (itemId) อย่างใดอย่างหนึ่ง
+
+model Attachment {
+  id Int @id @default(autoincrement())
+
+  requestNo String?      @map("request_no")
+  request   TestRequest? @relation(fields: [requestNo], references: [regisNo], onDelete: Cascade)
+
+  itemId Int?      @map("item_id")
+  item   TestItem? @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  kind  AttachmentKind @default(OTHER)
+  label String?
+
+  // กรณีอัปโหลดไฟล์
+  fileName   String? @map("file_name") // ชื่อไฟล์เดิม
+  storedName String? @map("stored_name") // ชื่อไฟล์บนดิสก์ (uuid)
+  mimeType   String? @map("mime_type")
+  sizeBytes  Int?    @map("size_bytes")
+
+  // กรณีเป็นลิงก์ภายนอก (เช่น Google Drive)
+  url String?
+
+  uploadedAt DateTime @default(now()) @map("uploaded_at")
+
+  @@map("attachments")
+}
+
+// ── ประวัติการเปลี่ยนสถานะ (audit trail + วิเคราะห์คอขวด/aging/CFD) ──
+
+model StatusLog {
+  id         Int            @id @default(autoincrement())
+  itemId     Int            @map("item_id")
+  item       TestItem       @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  fromStatus RequestStatus? @map("from_status") // null = สถานะแรกตอนสร้าง item
+  toStatus   RequestStatus  @map("to_status")
+  changedBy  String?        @map("changed_by") // ชื่อผู้เปลี่ยน (รอ auth — ตอนนี้ optional)
+  note       String?
+  changedAt  DateTime       @default(now()) @map("changed_at")
+
+  @@index([itemId])
+  @@map("status_logs")
+}
+
+// ── ประวัติการย้ายที่เก็บ (chain of custody) ──
+
+model LocationLog {
+  id        Int             @id @default(autoincrement())
+  itemId    Int             @map("item_id")
+  item      TestItem        @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  kind      LocationLogKind
+  fromName  String?         @map("from_name")
+  toName    String?         @map("to_name")
+  changedBy String?         @map("changed_by")
+  note      String?
+  changedAt DateTime        @default(now()) @map("changed_at")
+
+  @@index([itemId])
+  @@map("location_logs")
+}
+
+// ── แจ้งเตือน (ศูนย์แจ้งเตือนในแอป — สร้างจาก generator, ส่งออกภายนอกได้) ──
+
+model Notification {
+  id        Int               @id @default(autoincrement())
+  kind      String // OVERDUE | DUE_SOON | STATUS_CHANGE
+  level     NotificationLevel @default(INFO)
+  message   String
+  itemId    Int?              @map("item_id")
+  item      TestItem?         @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  dedupeKey String            @unique @map("dedupe_key") // กันสร้างซ้ำ (kind+item+วันที่)
+  readAt    DateTime?         @map("read_at")
+  createdAt DateTime          @default(now()) @map("created_at")
+
+  @@index([readAt])
+  @@map("notifications")
+}
+
+// ── Groundwork ฟีเจอร์ 5-7 (schema พร้อม ยังไม่ wire UI/logic) ──
+
+model Equipment {
+  id             Int       @id @default(autoincrement())
+  name           String    @unique
+  code           String?   @unique
+  type           String?
+  location       String?
+  calibrationDue DateTime? @map("calibration_due") // วันครบสอบเทียบ
+  active         Boolean   @default(true)
+  note           String?
+  runs           TestRun[]
+
+  @@map("equipment")
+}
+
+model TestMethod {
+  id            Int        @id @default(autoincrement())
+  code          String?    @unique
+  name          String     @unique
+  standard      String? // มาตรฐานอ้างอิง เช่น IEC/JIS
+  defaultDetail String?    @map("default_detail")
+  active        Boolean    @default(true)
+  items         TestItem[]
+
+  @@map("test_methods")
+}
