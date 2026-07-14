@@ -45,6 +45,7 @@ npm run dev              # เปิด http://localhost:3000
 | `/items/[item_code]` | รายละเอียด item ครบ: TAT/SLA, แก้ไขข้อมูล, stepper เปลี่ยนสถานะ (validation), ย้ายที่เก็บ (chain of custody), Test Runs (retest), รีพอร์ท, ไฟล์แนบ, QR, **ประวัติกิจกรรม (audit trail)** |
 | `/analytics?range=month\|30d\|all` | วิเคราะห์/KPI — throughput, ส่งตรง plan %, lead time, retest/pass rate, แยกตามแผนก, **คอขวด (เวลาเฉลี่ยในแต่ละสถานะ)**, aging WIP, **CFD 14 วัน** |
 | `/notifications` | ศูนย์แจ้งเตือน — งานเลย/ใกล้กำหนด + เปลี่ยนสถานะ (bell ใน NavBar มี badge จำนวนยังไม่อ่าน) |
+| `/settings/line` | ตั้งค่า + คู่มือผูก **LINE OA** (Messaging API) + ปุ่ม**ทดสอบส่งจริง** (dry-run ถ้ายังไม่ตั้ง token) |
 | `/master` | ตั้งค่า master data — เพิ่ม/แก้ชื่อ/ปิดใช้งาน แผนก·ทีมงาน·ตำแหน่งเก็บ + **เป้า SLA/TAT ต่อแผนก** |
 | `/labels?ids=CODE,CODE` | หน้าพิมพ์ QR label 50×25 มม. (ต่อ item · กด "พิมพ์") |
 | `/api/attachments/[id]` | เปิด/ดาวน์โหลดไฟล์แนบ (รูป/PDF เปิด inline, ลิงก์ redirect) |
@@ -60,6 +61,8 @@ npm run dev              # เปิด http://localhost:3000
 `npm run notify` (ตั้ง cron เช้าทุกวัน) จะสร้างแจ้งเตือนในแอป และส่งออกภายนอกถ้าตั้ง env ไว้ (ดู `.env`):
 - `NOTIFY_WEBHOOK_URL` — POST `{text}` เข้ากับ Slack / Discord / Teams / Telegram-bridge
 - หรือ `LINE_CHANNEL_ACCESS_TOKEN` + `LINE_TO` — LINE Messaging API (LINE Notify ปิดบริการ เม.ย. 2025 แล้ว)
+
+**ผูก LINE OA:** ทำที่หน้า `/settings/line` — มีคู่มือครบ (สร้าง Messaging API channel → ออก token → หา userId/groupId) + ปุ่มทดสอบส่ง (ยิงจริงถ้าตั้ง token แล้ว หรือ dry-run โชว์ payload ถ้ายัง)
 
 การเปลี่ยนสถานะจะสร้างแจ้งเตือนแบบเรียลไทม์ในแอปเสมอ · bell ใน NavBar แสดงจำนวนที่ยังไม่อ่าน
 

@@ -39,11 +39,14 @@ export default async function NotificationsPage() {
             งานเลยกำหนด/ใกล้กำหนด และการเปลี่ยนสถานะ · ยังไม่อ่าน {unread} รายการ
           </p>
         </div>
-        {unread > 0 && (
-          <form action={markAllNotificationsRead} className="ml-auto">
-            <button type="submit" className="btn-secondary btn-sm">ทำเครื่องหมายอ่านทั้งหมด</button>
-          </form>
-        )}
+        <div className="ml-auto flex items-center gap-2">
+          <Link href="/settings/line" className="btn-secondary btn-sm">⚙️ ตั้งค่า LINE</Link>
+          {unread > 0 && (
+            <form action={markAllNotificationsRead}>
+              <button type="submit" className="btn-secondary btn-sm">ทำเครื่องหมายอ่านทั้งหมด</button>
+            </form>
+          )}
+        </div>
       </div>
 
       {notifications.length === 0 ? (

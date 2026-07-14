@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { generateRegisNo, buildItemCode, nextItemNo } from "@/lib/regisNo";
 import { validateStatusRequirements } from "@/lib/workflow";
 import { notifyStatusChange } from "@/lib/notifications";
+import { sendLinePush, LineResult } from "@/lib/line";
 import {
   storeUploadedFile,
   validateUpload,
@@ -539,6 +540,25 @@ export async function markAllNotificationsRead() {
     data: { readAt: new Date() },
   });
   revalidatePath("/notifications");
+}
+
+// ── ทดสอบส่ง LINE OA (หน้า demo /settings/line) ─────────────
+
+export type LineTestState = {
+  ran: boolean;
+  result: LineResult | null;
+  errors: string[];
+};
+
+export async function sendLineTest(
+  _prev: LineTestState,
+  formData: FormData
+): Promise<LineTestState> {
+  const message = str(formData, "message") ?? "🔔 ทดสอบแจ้งเตือนจาก Dodoregis";
+  const token = str(formData, "token") ?? undefined; // override ชั่วคราว (ไม่บันทึก)
+  const to = str(formData, "to") ?? undefined;
+  const result = await sendLinePush(message, { token, to });
+  return { ran: true, result, errors: [] };
 }
 
 // ── master data (แผนก / ทีม / ที่เก็บ) ──────────────────────
