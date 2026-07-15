@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import StatusBadge from "@/components/StatusBadge";
 import { ALL_STATUSES, STATUS_LABEL, STATUS_COLOR } from "@/lib/workflow";
+import { requestRollup, PHASE_LABEL, PHASE_COLOR } from "@/lib/rollup";
 import { RequestStatus } from "@/generated/prisma/client";
 
 export type ItemRow = {
@@ -206,6 +207,20 @@ export default function GroupedRequests({ items }: { items: ItemRow[] }) {
               ) : (
                 <>
                   <span className="font-semibold text-ink">{sec.regisNo}</span>
+                  {(() => {
+                    const roll = requestRollup(
+                      sec.items.map((it) => ({
+                        status: it.status,
+                        planEnd: it.planEnd ? new Date(it.planEnd) : null,
+                        remark: it.remark,
+                      }))
+                    );
+                    return (
+                      <span className={`chip ${PHASE_COLOR[roll.phase]}`}>
+                        {PHASE_LABEL[roll.phase]} · เสร็จ {roll.done}/{roll.total}
+                      </span>
+                    );
+                  })()}
                   <span className="text-[13px] text-muted">
                     {sec.dept} · {sec.requester}
                   </span>

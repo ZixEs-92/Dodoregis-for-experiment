@@ -9,6 +9,7 @@ import {
   isUrgent,
 } from "@/lib/workflow";
 import LoadingBoard, { LoadItem } from "@/components/LoadingBoard";
+import { requestRollup, RequestPhase } from "@/lib/rollup";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +68,16 @@ export default async function DashboardPage() {
   }
   const workloadSorted = [...workload.entries()].sort((a, b) => b[1] - a[1]);
 
+  // สถานะรวมราย "ใบรีเควส" (rollup)
+  const byReq = new Map<string, { status: typeof items[number]["status"]; planEnd: Date | null; remark: string | null }[]>();
+  for (const i of items) {
+    const arr = byReq.get(i.regisNo) ?? [];
+    arr.push({ status: i.status, planEnd: i.planEnd, remark: i.remark });
+    byReq.set(i.regisNo, arr);
+  }
+  const phaseCount: Record<RequestPhase, number> = { EMPTY: 0, NOT_STARTED: 0, IN_PROGRESS: 0, DONE: 0 };
+  for (const arr of byReq.values()) phaseCount[requestRollup(arr).phase]++;
+
   const loadItems: LoadItem[] = active.map((i) => ({
     itemCode: i.itemCode,
     partName: i.partName,
@@ -99,6 +110,14 @@ export default async function DashboardPage() {
         <SummaryCard label="ครบกำหนดใน 7 วัน" value={dueSoon.length} sub="เตรียมตัวล่วงหน้า" className="bg-mustard text-ink" href="/requests?duesoon=1" />
         <SummaryCard label="ส่งตรง plan" value={onTimePct === null ? "—" : `${onTimePct}%`} sub={`${onTimeD} งานที่ส่งเสร็จ`} className="bg-forest text-white" href="/analytics" />
       </div>
+
+      <Link href="/requests" className="card p-4 flex flex-wrap items-center gap-x-5 gap-y-2 hover:border-border-strong transition-colors">
+        <span className="text-[13px] font-medium text-ink">ภาพรวมใบรีเควส ({requestCount})</span>
+        <span className="chip bg-yellow-soft text-mustard-deep">รอเริ่ม {phaseCount.NOT_STARTED}</span>
+        <span className="chip bg-info-soft text-info">กำลังดำเนินการ {phaseCount.IN_PROGRESS}</span>
+        <span className="chip bg-forest text-white">เสร็จสิ้น {phaseCount.DONE}</span>
+        <span className="ml-auto text-[12px] text-link">ดูรายการ →</span>
+      </Link>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
         <section className="card p-5 lg:col-span-3">

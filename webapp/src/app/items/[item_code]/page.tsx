@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { generateQrDataUrl } from "@/lib/qr";
 import { toInputDate, toDisplayDate } from "@/lib/date";
 import {
   isUrgent,
@@ -11,12 +10,14 @@ import {
   LOCATION_LOG_KIND_LABEL,
 } from "@/lib/workflow";
 import { leadTime, slaStatus, SLA_STATUS_LABEL, SLA_STATUS_COLOR } from "@/lib/tat";
+import { requestRollup, PHASE_LABEL, PHASE_COLOR } from "@/lib/rollup";
 import StatusBadge from "@/components/StatusBadge";
 import StatusStepper from "@/components/StatusStepper";
 import ItemDetailsForm from "@/components/ItemDetailsForm";
 import AttachmentsSection from "@/components/AttachmentsSection";
 import MoveLocationForm from "@/components/MoveLocationForm";
 import ActivityTimeline, { TimelineEvent } from "@/components/ActivityTimeline";
+import Tabs, { TabDef } from "@/components/Tabs";
 import {
   updateItemDetails,
   addTestRun,
@@ -45,7 +46,12 @@ export default async function ItemDetailPage({
   const item = await prisma.testItem.findUnique({
     where: { itemCode },
     include: {
-      request: { include: { requestDept: true } },
+      request: {
+        include: {
+          requestDept: true,
+          items: { select: { status: true, planEnd: true, remark: true } },
+        },
+      },
       owner: true,
       partLocation: true,
       finishedPartLocation: true,
@@ -65,11 +71,11 @@ export default async function ItemDetailPage({
     prisma.finishedLocation.findMany({ orderBy: { name: "asc" } }),
   ]);
 
-  const qrDataUrl = await generateQrDataUrl(`/items/${item.itemCode}`);
   const urgent = isUrgent(item.remark);
   const latestReport = item.reports[0];
+  const roll = requestRollup(item.request.items);
 
-  // TAT / SLA — lead time รับใบรีเควส → ส่งรีพอร์ท เทียบเป้าของแผนก
+  // TAT / SLA
   const slaDays = item.request.requestDept.slaDays;
   const sentDate = item.reports.find((r) => r.status === "SENT")?.sentDate ?? null;
   const lead = leadTime(item.request.requestDate, sentDate);
@@ -81,7 +87,6 @@ export default async function ItemDetailPage({
   const uploadBound = uploadAttachment.bind(null, { itemId: item.id });
   const moveBound = moveLocation.bind(null, item.itemCode);
 
-  // รวมประวัติสถานะ + ที่เก็บ เป็น timeline เดียว (ใหม่สุดอยู่บน)
   const events: TimelineEvent[] = [
     ...item.statusLogs.map((s) => ({
       at: s.changedAt,
@@ -99,97 +104,193 @@ export default async function ItemDetailPage({
     })),
   ].sort((a, b) => b.at.getTime() - a.at.getTime());
 
-  return (
-    <div className="flex flex-col gap-5 pb-10">
-      <Link href={`/requests/${item.regisNo}`} className="text-[13px] text-muted hover:text-ink w-fit">
-        ← กลับไปใบรีเควส {item.regisNo}
-      </Link>
-
-      <div className="card p-5 sm:p-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-[22px] font-medium text-ink sm:text-[26px]">{item.itemCode}</h1>
-            <StatusBadge status={item.status} />
-            {urgent && <span className="chip bg-coral text-white font-semibold">งานด่วน</span>}
-          </div>
-          <p className="text-[15px] text-body">
-            {item.partName}
-            {item.partNo && <span className="text-muted"> · {item.partNo}</span>}
-          </p>
-          <div className="flex items-center gap-2 text-[13px] text-muted">
-            <span className="grid place-items-center w-6 h-6 rounded-full bg-surface-strong text-ink text-[11px] font-medium shrink-0">
-              {item.owner.name.slice(0, 1)}
-            </span>
-            {item.owner.name} · {item.request.requestDept.name} · ผู้รีเควส {item.request.requester}
-          </div>
-        </div>
-
-        <div className="flex flex-col items-center gap-2 shrink-0 self-center sm:self-start">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={qrDataUrl} alt={`QR ${item.itemCode}`} className="w-28 h-28 border border-hairline rounded-lg bg-white p-2" />
-          <Link href={`/labels?ids=${item.itemCode}`} className="text-[12px] text-link hover:underline">
-            พิมพ์ label
-          </Link>
-        </div>
-      </div>
-
-      <div className="card p-4 sm:p-5 flex flex-wrap items-center gap-x-6 gap-y-2">
-        <div className="flex flex-col">
-          <span className="text-[12px] text-muted">Lead time (รับใบ → {lead.done ? "ส่งรีพอร์ท" : "ปัจจุบัน"})</span>
-          <span className="text-[20px] font-medium text-ink">
-            {lead.days} วัน
-            {!lead.done && <span className="text-[12px] text-muted font-normal"> (ยังไม่ส่ง)</span>}
-          </span>
-        </div>
-        <div className="flex flex-col">
-          <span className="text-[12px] text-muted">เป้า SLA ({item.request.requestDept.name})</span>
-          <span className="text-[20px] font-medium text-ink">
-            {slaDays ? `${slaDays} วัน` : "—"}
-          </span>
-        </div>
-        <span className={`chip ${SLA_STATUS_COLOR[sla]} self-center`}>
-          {SLA_STATUS_LABEL[sla]}
-        </span>
-      </div>
-
+  // ── panels ──
+  const overviewPanel = (
+    <div className="flex flex-col gap-4">
       <section className="card p-5 sm:p-6">
-        <SectionTitle>เปลี่ยนสถานะ item</SectionTitle>
+        <SectionTitle>เปลี่ยนสถานะ</SectionTitle>
         <div className="mt-4">
           <StatusStepper itemCode={item.itemCode} currentStatus={item.status} statusBeforeHold={item.statusBeforeHold} />
         </div>
       </section>
 
-      <section className="card p-5 sm:p-6">
-        <SectionTitle>ข้อมูล item</SectionTitle>
-        <ItemDetailsForm
-          action={updateBound}
-          defaults={{
-            partName: item.partName,
-            partNo: item.partNo ?? "",
-            qty: item.qty,
-            partReceivedDate: toInputDate(item.partReceivedDate),
-            partLocationId: item.partLocationId,
-            testDetail: item.testDetail,
-            planStart: toInputDate(item.planStart),
-            planEnd: toInputDate(item.planEnd),
-            actualStart: toInputDate(item.actualStart),
-            actualEnd: toInputDate(item.actualEnd),
-            ownerId: item.ownerId,
-            finishedPartLocationId: item.finishedPartLocationId,
-            rawDataLocation: item.rawDataLocation ?? "",
-            remark: item.remark ?? "",
-          }}
-          members={members.map((m) => ({ id: m.id, name: m.name }))}
-          partLocations={partLocations.map((p) => ({ id: p.id, name: p.name }))}
-          finishedLocations={finishedLocations.map((f) => ({ id: f.id, name: f.name }))}
-        />
-      </section>
+      <div className="card p-4 sm:p-5 flex flex-wrap items-center gap-x-6 gap-y-2">
+        <div className="flex flex-col">
+          <span className="text-[12px] text-muted">Lead time (รับใบ → {lead.done ? "ส่งรีพอร์ท" : "ปัจจุบัน"})</span>
+          <span className="text-[20px] font-medium text-ink">
+            {lead.days} วัน{!lead.done && <span className="text-[12px] text-muted font-normal"> (ยังไม่ส่ง)</span>}
+          </span>
+        </div>
+        <div className="flex flex-col">
+          <span className="text-[12px] text-muted">เป้า SLA ({item.request.requestDept.name})</span>
+          <span className="text-[20px] font-medium text-ink">{slaDays ? `${slaDays} วัน` : "—"}</span>
+        </div>
+        <span className={`chip ${SLA_STATUS_COLOR[sla]} self-center`}>{SLA_STATUS_LABEL[sla]}</span>
+      </div>
 
       <section className="card p-5 sm:p-6">
+        <SectionTitle>ข้อมูลสำคัญ</SectionTitle>
+        <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-[14px] mt-4 sm:grid-cols-2">
+          <Info label="ผู้รับผิดชอบ" value={item.owner.name} />
+          <Info label="จำนวนพาร์ท" value={item.qty != null ? String(item.qty) : "—"} />
+          <Info label="Plan เริ่ม – จบ" value={`${toDisplayDate(item.planStart)} – ${toDisplayDate(item.planEnd)}`} />
+          <Info label="จริง เริ่ม – จบ" value={`${toDisplayDate(item.actualStart)} – ${toDisplayDate(item.actualEnd)}`} />
+          <Info label="ที่เก็บพาร์ท" value={item.partLocation?.name ?? "—"} />
+          <Info label="ที่เก็บหลังเสร็จ" value={item.finishedPartLocation?.name ?? "—"} />
+          <Info label="ที่เก็บ raw data" value={item.rawDataLocation ?? "—"} />
+          {item.remark && <Info label="หมายเหตุ" value={item.remark} />}
+        </dl>
+      </section>
+    </div>
+  );
+
+  const detailPanel = (
+    <section className="card p-5 sm:p-6">
+      <SectionTitle>รายละเอียดการทดสอบ / แก้ไขข้อมูล item</SectionTitle>
+      <ItemDetailsForm
+        action={updateBound}
+        defaults={{
+          partName: item.partName,
+          partNo: item.partNo ?? "",
+          qty: item.qty,
+          partReceivedDate: toInputDate(item.partReceivedDate),
+          partLocationId: item.partLocationId,
+          testDetail: item.testDetail,
+          planStart: toInputDate(item.planStart),
+          planEnd: toInputDate(item.planEnd),
+          actualStart: toInputDate(item.actualStart),
+          actualEnd: toInputDate(item.actualEnd),
+          ownerId: item.ownerId,
+          finishedPartLocationId: item.finishedPartLocationId,
+          rawDataLocation: item.rawDataLocation ?? "",
+          remark: item.remark ?? "",
+        }}
+        members={members.map((m) => ({ id: m.id, name: m.name }))}
+        partLocations={partLocations.map((p) => ({ id: p.id, name: p.name }))}
+        finishedLocations={finishedLocations.map((f) => ({ id: f.id, name: f.name }))}
+      />
+    </section>
+  );
+
+  const runsPanel = (
+    <section className="card p-5 sm:p-6">
+      <SectionTitle>ความคืบหน้า — Test Runs</SectionTitle>
+      <div className="overflow-x-auto mt-4 mb-4 rounded-lg border border-hairline">
+        <table className="w-full text-[14px] min-w-[720px]">
+          <thead>
+            <tr className="border-b border-hairline text-left">
+              <th className="p-3 text-[12px] font-medium text-muted uppercase tracking-wide">ครั้งที่</th>
+              <th className="p-3 text-[12px] font-medium text-muted uppercase tracking-wide">เริ่ม - จบ</th>
+              <th className="p-3 text-[12px] font-medium text-muted uppercase tracking-wide">Loading</th>
+              <th className="p-3 text-[12px] font-medium text-muted uppercase tracking-wide">ผู้เทส</th>
+              <th className="p-3 text-[12px] font-medium text-muted uppercase tracking-wide">ผล</th>
+              <th className="p-3 text-[12px] font-medium text-muted uppercase tracking-wide">Raw data</th>
+              <th className="p-3 text-[12px] font-medium text-muted uppercase tracking-wide">Remark</th>
+            </tr>
+          </thead>
+          <tbody>
+            {item.testRuns.map((run) => (
+              <tr key={run.id} className="border-b border-hairline last:border-0">
+                <td className="p-3 font-medium text-ink">#{run.runNo}</td>
+                <td className="p-3 whitespace-nowrap text-body">{toDisplayDate(run.startDate)} - {toDisplayDate(run.endDate)}</td>
+                <td className="p-3 whitespace-nowrap text-body">{run.loadingOwner?.name ?? "-"}</td>
+                <td className="p-3 whitespace-nowrap text-body">{run.testOwner?.name ?? "-"}</td>
+                <td className="p-3 whitespace-nowrap">
+                  {run.result ? (
+                    <span className={`chip ${run.result === "PASS" ? "bg-forest-soft text-forest" : run.result === "FAIL" ? "bg-coral-soft text-coral" : "bg-mustard-soft text-mustard-deep"}`}>
+                      {RUN_RESULT_LABEL[run.result]}
+                    </span>
+                  ) : <span className="text-muted">-</span>}
+                </td>
+                <td className="p-3">{run.rawDataUrl ? <a href={run.rawDataUrl} target="_blank" className="text-link hover:underline">ลิงก์</a> : <span className="text-muted">-</span>}</td>
+                <td className="p-3 text-body">{run.remark ?? "-"}</td>
+              </tr>
+            ))}
+            {item.testRuns.length === 0 && (
+              <tr><td colSpan={7} className="p-6 text-center text-muted">ยังไม่มีการเทส</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <details className="border border-hairline rounded-lg overflow-hidden">
+        <summary className="cursor-pointer select-none px-4 py-3 text-[13px] font-medium bg-surface-soft text-ink">+ เพิ่ม Test Run (retest)</summary>
+        <form action={createRun} className="p-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="วันเริ่ม"><input type="date" name="start_date" className="input" /></Field>
+          <Field label="วันจบ"><input type="date" name="end_date" className="input" /></Field>
+          <Field label="ผู้รับผิดชอบ Loading">
+            <select name="loading_owner" defaultValue="" className="input">
+              <option value="">- ไม่ระบุ -</option>
+              {members.map((m) => (<option key={m.id} value={m.id}>{m.name}</option>))}
+            </select>
+          </Field>
+          <Field label="ผู้รับผิดชอบเทส">
+            <select name="test_owner" defaultValue="" className="input">
+              <option value="">- ไม่ระบุ -</option>
+              {members.map((m) => (<option key={m.id} value={m.id}>{m.name}</option>))}
+            </select>
+          </Field>
+          <Field label="ผลเทส">
+            <select name="result" defaultValue="" className="input">
+              <option value="">- ยังไม่มีผล -</option>
+              <option value="PASS">Pass</option>
+              <option value="FAIL">Fail</option>
+              <option value="CONDITIONAL_PASS">Conditional Pass</option>
+            </select>
+          </Field>
+          <Field label="ลิงก์ Raw Data"><input type="url" name="rawdata_url" className="input" /></Field>
+          <Field label="Remark" className="sm:col-span-2"><input type="text" name="remark" className="input" /></Field>
+          <div className="sm:col-span-2"><button type="submit" className="btn-primary btn-sm">บันทึก Test Run</button></div>
+        </form>
+      </details>
+    </section>
+  );
+
+  const reportPanel = (
+    <section className="card p-5 sm:p-6">
+      <SectionTitle>รีพอร์ท (ของ item นี้)</SectionTitle>
+      <form action={saveReport} className="grid grid-cols-1 gap-4 mt-4 sm:grid-cols-2">
+        <Field label="สถานะรีพอร์ท">
+          <select name="status" defaultValue={latestReport?.status ?? "NOT_STARTED"} className="input">
+            {Object.entries(REPORT_STATUS_LABEL).map(([v, l]) => (<option key={v} value={v}>{l}</option>))}
+          </select>
+        </Field>
+        <Field label="วันที่ส่งรีพอร์ท"><input type="date" name="sent_date" defaultValue={toInputDate(latestReport?.sentDate)} className="input" /></Field>
+        <Field label="ที่อยู่ไฟล์"><input type="text" name="file_path" defaultValue={latestReport?.filePath ?? ""} className="input" /></Field>
+        <Field label="ลิงก์รีพอร์ท"><input type="url" name="report_url" defaultValue={latestReport?.reportUrl ?? ""} className="input" /></Field>
+        <Field label="ผู้จัดทำ">
+          <select name="author" defaultValue={latestReport?.authorId ?? ""} className="input">
+            <option value="">- ไม่ระบุ -</option>
+            {members.map((m) => (<option key={m.id} value={m.id}>{m.name}</option>))}
+          </select>
+        </Field>
+        <Field label="ผู้อนุมัติ">
+          <select name="approver" defaultValue={latestReport?.approverId ?? ""} className="input">
+            <option value="">- ไม่ระบุ -</option>
+            {members.map((m) => (<option key={m.id} value={m.id}>{m.name}</option>))}
+          </select>
+        </Field>
+        <div className="sm:col-span-2"><button type="submit" className="btn-primary">บันทึกรีพอร์ท</button></div>
+      </form>
+    </section>
+  );
+
+  const attachmentsPanel = (
+    <AttachmentsSection
+      title="ไฟล์แนบของ item (รูปชิ้นงาน / สเปคทดสอบ)"
+      uploadAction={uploadBound}
+      attachments={item.attachments.map((a) => ({
+        id: a.id, kind: a.kind, label: a.label, fileName: a.fileName,
+        storedName: a.storedName, mimeType: a.mimeType, sizeBytes: a.sizeBytes, url: a.url,
+      }))}
+    />
+  );
+
+  const historyPanel = (
+    <div className="flex flex-col gap-4">
+      <section className="card p-5 sm:p-6">
         <SectionTitle>ย้ายที่เก็บชิ้นงาน (chain of custody)</SectionTitle>
-        <p className="text-[12px] text-muted mt-3 mb-3">
-          สแกน QR แล้วบันทึกย้ายที่เก็บได้เร็วๆ ตรงนี้ ระบบเก็บประวัติทุกครั้งที่ย้าย
-        </p>
+        <p className="text-[12px] text-muted mt-3 mb-3">บันทึกย้ายที่เก็บได้เร็ว ๆ ตรงนี้ ระบบเก็บประวัติทุกครั้งที่ย้าย</p>
         <MoveLocationForm
           action={moveBound}
           partLocations={partLocations.map((p) => ({ id: p.id, name: p.name }))}
@@ -198,139 +299,50 @@ export default async function ItemDetailPage({
           currentFinished={item.finishedPartLocation?.name ?? null}
         />
       </section>
-
-      <section className="card p-5 sm:p-6">
-        <SectionTitle>Test Runs</SectionTitle>
-        <div className="overflow-x-auto mt-4 mb-4 rounded-lg border border-hairline">
-          <table className="w-full text-[14px] min-w-[720px]">
-            <thead>
-              <tr className="border-b border-hairline text-left">
-                <th className="p-3 text-[12px] font-medium text-muted uppercase tracking-wide">ครั้งที่</th>
-                <th className="p-3 text-[12px] font-medium text-muted uppercase tracking-wide">เริ่ม - จบ</th>
-                <th className="p-3 text-[12px] font-medium text-muted uppercase tracking-wide">Loading</th>
-                <th className="p-3 text-[12px] font-medium text-muted uppercase tracking-wide">ผู้เทส</th>
-                <th className="p-3 text-[12px] font-medium text-muted uppercase tracking-wide">ผล</th>
-                <th className="p-3 text-[12px] font-medium text-muted uppercase tracking-wide">Raw data</th>
-                <th className="p-3 text-[12px] font-medium text-muted uppercase tracking-wide">Remark</th>
-              </tr>
-            </thead>
-            <tbody>
-              {item.testRuns.map((run) => (
-                <tr key={run.id} className="border-b border-hairline last:border-0">
-                  <td className="p-3 font-medium text-ink">#{run.runNo}</td>
-                  <td className="p-3 whitespace-nowrap text-body">
-                    {toDisplayDate(run.startDate)} - {toDisplayDate(run.endDate)}
-                  </td>
-                  <td className="p-3 whitespace-nowrap text-body">{run.loadingOwner?.name ?? "-"}</td>
-                  <td className="p-3 whitespace-nowrap text-body">{run.testOwner?.name ?? "-"}</td>
-                  <td className="p-3 whitespace-nowrap">
-                    {run.result ? (
-                      <span className={`chip ${run.result === "PASS" ? "bg-forest-soft text-forest" : run.result === "FAIL" ? "bg-coral-soft text-coral" : "bg-mustard-soft text-mustard-deep"}`}>
-                        {RUN_RESULT_LABEL[run.result]}
-                      </span>
-                    ) : (
-                      <span className="text-muted">-</span>
-                    )}
-                  </td>
-                  <td className="p-3">
-                    {run.rawDataUrl ? (
-                      <a href={run.rawDataUrl} target="_blank" className="text-link hover:underline">ลิงก์</a>
-                    ) : <span className="text-muted">-</span>}
-                  </td>
-                  <td className="p-3 text-body">{run.remark ?? "-"}</td>
-                </tr>
-              ))}
-              {item.testRuns.length === 0 && (
-                <tr><td colSpan={7} className="p-6 text-center text-muted">ยังไม่มีการเทส</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        <details className="border border-hairline rounded-lg overflow-hidden">
-          <summary className="cursor-pointer select-none px-4 py-3 text-[13px] font-medium bg-surface-soft text-ink">
-            + เพิ่ม Test Run (retest)
-          </summary>
-          <form action={createRun} className="p-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="วันเริ่ม"><input type="date" name="start_date" className="input" /></Field>
-            <Field label="วันจบ"><input type="date" name="end_date" className="input" /></Field>
-            <Field label="ผู้รับผิดชอบ Loading">
-              <select name="loading_owner" defaultValue="" className="input">
-                <option value="">- ไม่ระบุ -</option>
-                {members.map((m) => (<option key={m.id} value={m.id}>{m.name}</option>))}
-              </select>
-            </Field>
-            <Field label="ผู้รับผิดชอบเทส">
-              <select name="test_owner" defaultValue="" className="input">
-                <option value="">- ไม่ระบุ -</option>
-                {members.map((m) => (<option key={m.id} value={m.id}>{m.name}</option>))}
-              </select>
-            </Field>
-            <Field label="ผลเทส">
-              <select name="result" defaultValue="" className="input">
-                <option value="">- ยังไม่มีผล -</option>
-                <option value="PASS">Pass</option>
-                <option value="FAIL">Fail</option>
-                <option value="CONDITIONAL_PASS">Conditional Pass</option>
-              </select>
-            </Field>
-            <Field label="ลิงก์ Raw Data"><input type="url" name="rawdata_url" className="input" /></Field>
-            <Field label="Remark" className="sm:col-span-2"><input type="text" name="remark" className="input" /></Field>
-            <div className="sm:col-span-2">
-              <button type="submit" className="btn-primary btn-sm">บันทึก Test Run</button>
-            </div>
-          </form>
-        </details>
-      </section>
-
-      <section className="card p-5 sm:p-6">
-        <SectionTitle>รีพอร์ท (ของ item นี้)</SectionTitle>
-        <form action={saveReport} className="grid grid-cols-1 gap-4 mt-4 sm:grid-cols-2">
-          <Field label="สถานะรีพอร์ท">
-            <select name="status" defaultValue={latestReport?.status ?? "NOT_STARTED"} className="input">
-              {Object.entries(REPORT_STATUS_LABEL).map(([v, l]) => (<option key={v} value={v}>{l}</option>))}
-            </select>
-          </Field>
-          <Field label="วันที่ส่งรีพอร์ท"><input type="date" name="sent_date" defaultValue={toInputDate(latestReport?.sentDate)} className="input" /></Field>
-          <Field label="ที่อยู่ไฟล์"><input type="text" name="file_path" defaultValue={latestReport?.filePath ?? ""} className="input" /></Field>
-          <Field label="ลิงก์รีพอร์ท"><input type="url" name="report_url" defaultValue={latestReport?.reportUrl ?? ""} className="input" /></Field>
-          <Field label="ผู้จัดทำ">
-            <select name="author" defaultValue={latestReport?.authorId ?? ""} className="input">
-              <option value="">- ไม่ระบุ -</option>
-              {members.map((m) => (<option key={m.id} value={m.id}>{m.name}</option>))}
-            </select>
-          </Field>
-          <Field label="ผู้อนุมัติ">
-            <select name="approver" defaultValue={latestReport?.approverId ?? ""} className="input">
-              <option value="">- ไม่ระบุ -</option>
-              {members.map((m) => (<option key={m.id} value={m.id}>{m.name}</option>))}
-            </select>
-          </Field>
-          <div className="sm:col-span-2">
-            <button type="submit" className="btn-primary">บันทึกรีพอร์ท</button>
-          </div>
-        </form>
-      </section>
-
-      <AttachmentsSection
-        title="ไฟล์แนบของ item (รูปชิ้นงาน / สเปคทดสอบ)"
-        uploadAction={uploadBound}
-        attachments={item.attachments.map((a) => ({
-          id: a.id,
-          kind: a.kind,
-          label: a.label,
-          fileName: a.fileName,
-          storedName: a.storedName,
-          mimeType: a.mimeType,
-          sizeBytes: a.sizeBytes,
-          url: a.url,
-        }))}
-      />
-
       <section className="card p-5 sm:p-6">
         <SectionTitle>ประวัติกิจกรรม (audit trail)</SectionTitle>
         <ActivityTimeline events={events} />
       </section>
+    </div>
+  );
+
+  const tabs: TabDef[] = [
+    { id: "overview", label: "ภาพรวม", content: overviewPanel },
+    { id: "detail", label: "รายละเอียดเทส", content: detailPanel },
+    { id: "runs", label: "ความคืบหน้า", content: runsPanel, badge: item.testRuns.length },
+    { id: "report", label: "รีพอร์ท", content: reportPanel },
+    { id: "files", label: "ไฟล์แนบ", content: attachmentsPanel, badge: item.attachments.length },
+    { id: "history", label: "ที่เก็บ & ประวัติ", content: historyPanel },
+  ];
+
+  return (
+    <div className="flex flex-col gap-4 pb-10">
+      {/* breadcrumb: ใบรีเควส + สถานะรวม */}
+      <Link href={`/requests/${item.regisNo}`} className="flex items-center gap-2 text-[13px] w-fit">
+        <span className="text-muted hover:text-ink">← ใบรีเควส {item.regisNo}</span>
+        <span className={`chip ${PHASE_COLOR[roll.phase]}`}>{PHASE_LABEL[roll.phase]} · เสร็จ {roll.done}/{roll.total}</span>
+      </Link>
+
+      {/* หัว item + สถานะปัจจุบัน (เห็นตลอด) */}
+      <div className="card p-5 sm:p-6 flex flex-col gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h1 className="text-[22px] font-medium text-ink sm:text-[26px]">{item.itemCode}</h1>
+          <StatusBadge status={item.status} />
+          {urgent && <span className="chip bg-coral text-white font-semibold">งานด่วน</span>}
+        </div>
+        <p className="text-[15px] text-body">
+          {item.partName}
+          {item.partNo && <span className="text-muted"> · {item.partNo}</span>}
+        </p>
+        <div className="flex items-center gap-2 text-[13px] text-muted">
+          <span className="grid place-items-center w-6 h-6 rounded-full bg-surface-strong text-ink text-[11px] font-medium shrink-0">
+            {item.owner.name.slice(0, 1)}
+          </span>
+          {item.owner.name} · {item.request.requestDept.name} · ผู้รีเควส {item.request.requester}
+        </div>
+      </div>
+
+      <Tabs tabs={tabs} />
     </div>
   );
 }
@@ -343,19 +355,20 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Field({
-  label,
-  className,
-  children,
-}: {
-  label: string;
-  className?: string;
-  children: React.ReactNode;
-}) {
+function Field({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
   return (
     <label className={`flex flex-col gap-1.5 ${className ?? ""}`}>
       <span className="label-text">{label}</span>
       {children}
     </label>
+  );
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex gap-2">
+      <dt className="text-muted shrink-0 w-32">{label}</dt>
+      <dd className="text-ink">{value}</dd>
+    </div>
   );
 }

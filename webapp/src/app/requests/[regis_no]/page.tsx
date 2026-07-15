@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { generateQrDataUrl } from "@/lib/qr";
 import { toDisplayDate } from "@/lib/date";
 import { isOverdue, isUrgent } from "@/lib/workflow";
+import { requestRollup, PHASE_LABEL, PHASE_COLOR } from "@/lib/rollup";
 import StatusBadge from "@/components/StatusBadge";
 import AddItemForm from "@/components/AddItemForm";
 import AttachmentsSection from "@/components/AttachmentsSection";
@@ -29,10 +31,7 @@ export default async function RequestOverviewPage({
     where: { regisNo },
     include: {
       requestDept: true,
-      items: {
-        include: { owner: true },
-        orderBy: { itemNo: "asc" },
-      },
+      items: { include: { owner: true }, orderBy: { itemNo: "asc" } },
       attachments: { orderBy: { id: "desc" } },
     },
   });
@@ -44,6 +43,8 @@ export default async function RequestOverviewPage({
     orderBy: { name: "asc" },
   });
 
+  const roll = requestRollup(request.items);
+  const qrDataUrl = await generateQrDataUrl(`/requests/${regisNo}`);
   const nextItemNo = (request.items.at(-1)?.itemNo ?? 0) + 1;
   const addItemBound = addItem.bind(null, regisNo);
   const uploadBound = uploadAttachment.bind(null, { requestNo: regisNo });
@@ -54,77 +55,92 @@ export default async function RequestOverviewPage({
         ← กลับไปรายการงาน
       </Link>
 
-      <div className="card p-5 sm:p-6 flex flex-col gap-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          <h1 className="text-[22px] font-medium text-ink sm:text-[26px]">{request.regisNo}</h1>
-          <span className="chip bg-surface-strong text-ink">{request.items.length} item</span>
+      {/* หัวใบ + สถานะรวม + QR */}
+      <div className="card p-5 sm:p-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-3 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-[22px] font-medium text-ink sm:text-[26px]">{request.regisNo}</h1>
+            <span className={`chip ${PHASE_COLOR[roll.phase]} font-semibold`}>{PHASE_LABEL[roll.phase]}</span>
+            {roll.overdueCount > 0 && <span className="chip bg-coral text-white">🔴 เลยกำหนด {roll.overdueCount}</span>}
+            {roll.urgentCount > 0 && <span className="chip bg-coral-soft text-coral">⚡ ด่วน {roll.urgentCount}</span>}
+            {roll.hold > 0 && <span className="chip bg-mustard text-ink">⏸ Hold {roll.hold}</span>}
+          </div>
+
+          {/* progress */}
+          <div className="flex items-center gap-3 max-w-md">
+            <div className="flex-1 bg-surface-strong rounded-sm h-2.5 overflow-hidden">
+              <div className="bg-forest h-full rounded-sm" style={{ width: `${roll.progressPct}%` }} />
+            </div>
+            <span className="text-[13px] font-medium text-ink shrink-0">
+              เสร็จ {roll.done}/{roll.total} item
+            </span>
+          </div>
+
+          <dl className="grid grid-cols-1 gap-x-6 gap-y-1.5 text-[14px] sm:grid-cols-2">
+            <Row label="แผนกที่รีเควส" value={request.requestDept.name} />
+            <Row label="ผู้รีเควส" value={request.requester} />
+            <Row label="วันที่ได้ใบรีเควส" value={toDisplayDate(request.requestDate)} />
+            {request.remark && <Row label="หมายเหตุ" value={request.remark} />}
+            {request.folderUrl && (
+              <Row label="โฟลเดอร์งาน" value={<a href={request.folderUrl} target="_blank" className="text-link hover:underline">เปิด Drive</a>} />
+            )}
+          </dl>
         </div>
-        <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-[14px] sm:grid-cols-2">
-          <Row label="แผนกที่รีเควส" value={request.requestDept.name} />
-          <Row label="ผู้รีเควส" value={request.requester} />
-          <Row label="วันที่ได้ใบรีเควส" value={toDisplayDate(request.requestDate)} />
-          {request.remark && <Row label="หมายเหตุ" value={request.remark} />}
-          {request.folderUrl && (
-            <Row
-              label="โฟลเดอร์งาน"
-              value={
-                <a href={request.folderUrl} target="_blank" className="text-link hover:underline">
-                  เปิด Drive
-                </a>
-              }
-            />
-          )}
-        </dl>
+
+        <div className="flex flex-col items-center gap-2 shrink-0 self-center sm:self-start">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={qrDataUrl} alt={`QR ${regisNo}`} className="w-28 h-28 border border-hairline rounded-lg bg-white p-2" />
+          <Link href={`/labels?regis=${regisNo}`} className="text-[12px] text-link hover:underline">พิมพ์ label ใบนี้</Link>
+        </div>
       </div>
 
-      <section className="card p-5 sm:p-6">
-        <h2 className="text-[13px] font-medium text-muted uppercase tracking-wide pb-3 border-b border-hairline">
-          รายการ item ในใบรีเควสนี้
-        </h2>
-        <div className="overflow-x-auto mt-4 mb-4 rounded-lg border border-hairline">
-          <table className="w-full text-[14px] min-w-[680px]">
-            <thead>
-              <tr className="border-b border-hairline text-left">
-                <th className="p-3 text-[12px] font-medium text-muted uppercase tracking-wide">Item</th>
-                <th className="p-3 text-[12px] font-medium text-muted uppercase tracking-wide">ชิ้นงาน / พาร์ทโน</th>
-                <th className="p-3 text-[12px] font-medium text-muted uppercase tracking-wide">ผู้รับผิดชอบ</th>
-                <th className="p-3 text-[12px] font-medium text-muted uppercase tracking-wide">สถานะ</th>
-                <th className="p-3 text-[12px] font-medium text-muted uppercase tracking-wide">Plan จบ</th>
-                <th className="p-3"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {request.items.map((it) => {
-                const overdue = isOverdue(it.planEnd, it.status);
-                const urgent = isUrgent(it.remark);
-                return (
-                  <tr key={it.id} className={`border-b border-hairline last:border-0 ${urgent ? "bg-coral-soft" : ""}`}>
-                    <td className="p-3 font-medium whitespace-nowrap">
-                      {urgent && <span className="inline-block w-1.5 h-1.5 rounded-full bg-coral mr-1.5 align-middle" title="งานด่วน" />}
-                      <Link href={`/items/${it.itemCode}`} className="text-ink hover:text-link">
-                        {it.itemCode}
-                      </Link>
-                    </td>
-                    <td className="p-3">
-                      <div className="text-ink">{it.partName}</div>
-                      {it.partNo && <div className="text-[12px] text-muted">{it.partNo}</div>}
-                    </td>
-                    <td className="p-3 whitespace-nowrap text-body">{it.owner.name}</td>
-                    <td className="p-3"><StatusBadge status={it.status} /></td>
-                    <td className={`p-3 whitespace-nowrap ${overdue ? "text-coral font-medium" : "text-body"}`}>
-                      {toDisplayDate(it.planEnd)}
-                    </td>
-                    <td className="p-3">
-                      <Link href={`/items/${it.itemCode}`} className="text-[13px] text-link hover:underline whitespace-nowrap">
-                        ดูรายละเอียด →
-                      </Link>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      {/* รายการ item เป็นการ์ด/ปุ่ม */}
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-[15px] font-medium text-ink">รายการทดสอบในใบนี้ ({request.items.length})</h2>
         </div>
+
+        {request.items.length === 0 ? (
+          <div className="card p-8 text-center text-muted">ยังไม่มี item — เพิ่มด้านล่าง</div>
+        ) : (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {request.items.map((it) => {
+              const overdue = isOverdue(it.planEnd, it.status);
+              const urgent = isUrgent(it.remark);
+              return (
+                <Link
+                  key={it.id}
+                  href={`/items/${it.itemCode}`}
+                  className={`card p-4 flex flex-col gap-2 transition-colors hover:border-border-strong hover:bg-surface-soft ${urgent ? "border-coral/40" : ""}`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[13px] font-semibold text-ink">
+                      {urgent && <span className="inline-block w-1.5 h-1.5 rounded-full bg-coral mr-1.5 align-middle" title="งานด่วน" />}
+                      #{String(it.itemNo).padStart(2, "0")} · {it.itemCode}
+                    </span>
+                    <StatusBadge status={it.status} />
+                  </div>
+                  <div className="text-[15px] text-ink">
+                    {it.partName}
+                    {it.partNo && <span className="text-muted text-[13px]"> · {it.partNo}</span>}
+                  </div>
+                  <div className="flex items-center justify-between text-[12px]">
+                    <span className="flex items-center gap-1.5 text-muted">
+                      <span className="grid place-items-center w-5 h-5 rounded-full bg-surface-strong text-ink text-[10px] font-medium">
+                        {it.owner.name.slice(0, 1)}
+                      </span>
+                      {it.owner.name}
+                    </span>
+                    <span className={overdue ? "text-coral font-medium" : "text-muted"}>
+                      กำหนดจบ {toDisplayDate(it.planEnd)}
+                    </span>
+                  </div>
+                  <span className="text-[13px] text-link mt-1">ดูรายละเอียด →</span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
 
         <AddItemForm
           action={addItemBound}

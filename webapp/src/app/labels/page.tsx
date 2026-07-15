@@ -7,26 +7,44 @@ export const metadata = { title: "พิมพ์ QR Label — Dodoregis" };
 export default async function LabelsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ids?: string }>;
+  searchParams: Promise<{ ids?: string; regis?: string }>;
 }) {
   const sp = await searchParams;
+  const regisList = (sp.regis ?? "").split(",").map((s) => s.trim()).filter(Boolean);
   const ids = (sp.ids ?? "").split(",").map((s) => s.trim()).filter(Boolean);
 
-  const items = await prisma.testItem.findMany({
-    where: { itemCode: { in: ids } },
-  });
-  // keep the order the user selected
-  const ordered = ids
-    .map((id) => items.find((it) => it.itemCode === id))
-    .filter((it): it is NonNullable<typeof it> => Boolean(it));
+  let labels: { code: string; part: string; qr: string }[] = [];
 
-  const labels = await Promise.all(
-    ordered.map(async (it) => ({
-      itemCode: it.itemCode,
-      partName: it.partName,
-      qr: await generateQrDataUrl(`/items/${it.itemCode}`, 160),
-    }))
-  );
+  if (regisList.length > 0) {
+    // QR ระดับใบรีเควส (ชี้ไปหน้า hub /requests/[regis])
+    const requests = await prisma.testRequest.findMany({
+      where: { regisNo: { in: regisList } },
+      include: { items: { orderBy: { itemNo: "asc" }, take: 1 } },
+    });
+    const ordered = regisList
+      .map((r) => requests.find((req) => req.regisNo === r))
+      .filter((r): r is NonNullable<typeof r> => Boolean(r));
+    labels = await Promise.all(
+      ordered.map(async (req) => ({
+        code: req.regisNo,
+        part: req.items[0]?.partName ?? `${req.regisNo}`,
+        qr: await generateQrDataUrl(`/requests/${req.regisNo}`, 160),
+      }))
+    );
+  } else {
+    // QR ระดับ item (ชี้ไปหน้า item)
+    const items = await prisma.testItem.findMany({ where: { itemCode: { in: ids } } });
+    const ordered = ids
+      .map((id) => items.find((it) => it.itemCode === id))
+      .filter((it): it is NonNullable<typeof it> => Boolean(it));
+    labels = await Promise.all(
+      ordered.map(async (it) => ({
+        code: it.itemCode,
+        part: it.partName,
+        qr: await generateQrDataUrl(`/items/${it.itemCode}`, 160),
+      }))
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -46,12 +64,12 @@ export default async function LabelsPage({
 
       <div className="label-sheet">
         {labels.map((l) => (
-          <div className="label" key={l.itemCode}>
+          <div className="label" key={l.code}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={l.qr} alt={l.itemCode} className="label-qr" />
+            <img src={l.qr} alt={l.code} className="label-qr" />
             <div className="label-text">
-              <div className="label-regis">{l.itemCode}</div>
-              <div className="label-part">{l.partName}</div>
+              <div className="label-regis">{l.code}</div>
+              <div className="label-part">{l.part}</div>
             </div>
           </div>
         ))}
