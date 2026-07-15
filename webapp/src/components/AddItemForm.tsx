@@ -21,8 +21,8 @@ export default function AddItemForm({
 
   return (
     <details className="border border-hairline rounded-lg overflow-hidden">
-      <summary className="cursor-pointer select-none px-4 py-3 text-[13px] font-medium bg-surface-soft text-ink">
-        + เพิ่ม item (ชิ้นงานที่ #{String(nextItemNo).padStart(2, "0")})
+      <summary className="cursor-pointer select-none px-4 py-3 text-[14px] font-medium bg-ink text-white hover:bg-ink-active transition-colors">
+        ➕ เพิ่มรายการทดสอบในใบนี้ (item #{String(nextItemNo).padStart(2, "0")})
       </summary>
       <form action={formAction} className="p-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">

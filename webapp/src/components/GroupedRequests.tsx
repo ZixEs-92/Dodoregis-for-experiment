@@ -177,6 +177,12 @@ export default function GroupedRequests({ items }: { items: ItemRow[] }) {
         {selected.size > 0 && ` · เลือก ${selected.size} item`}
       </div>
 
+      {mode === "status" && (
+        <div className="rounded-lg bg-info-soft/60 border border-info-border/20 px-3.5 py-2 text-[12px] text-info">
+          💡 1 ใบรีเควสมีได้หลายรายการทดสอบ (item) — กด <b>“ตามใบรีเควส”</b> ด้านบนเพื่อดูจัดกลุ่มตามใบ และเข้าไป <b>เพิ่ม item</b> ในแต่ละใบ
+        </div>
+      )}
+
       {sections.length === 0 && (
         <div className="card p-10 text-center text-muted">ไม่พบงานที่ตรงเงื่อนไข</div>
       )}
@@ -190,23 +196,23 @@ export default function GroupedRequests({ items }: { items: ItemRow[] }) {
         return (
           <div key={sec.key} className="card overflow-hidden">
             {/* section header */}
-            <button
-              onClick={() => toggleCollapse(sec.key)}
-              className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 bg-surface-soft border-b border-hairline text-left hover:bg-surface-strong/40 transition-colors"
-            >
-              <span className={`text-muted transition-transform ${isCollapsed ? "" : "rotate-90"}`}>
-                ▶
-              </span>
+            <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 bg-surface-soft border-b border-hairline">
+              <button
+                onClick={() => toggleCollapse(sec.key)}
+                className="flex items-center gap-3 hover:opacity-70 transition-opacity"
+                title="ย่อ/ขยาย"
+              >
+                <span className={`text-muted transition-transform ${isCollapsed ? "" : "rotate-90"}`}>▶</span>
+                {mode === "status" && (
+                  <span className={`chip ${STATUS_COLOR[sec.status!]}`}>{STATUS_LABEL[sec.status!]}</span>
+                )}
+              </button>
 
-              {mode === "status" ? (
+              {mode === "request" && (
                 <>
-                  <span className={`chip ${STATUS_COLOR[sec.status!]}`}>
-                    {STATUS_LABEL[sec.status!]}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <span className="font-semibold text-ink">{sec.regisNo}</span>
+                  <Link href={`/requests/${sec.regisNo}`} className="font-semibold text-ink hover:text-link">
+                    {sec.regisNo}
+                  </Link>
                   {(() => {
                     const roll = requestRollup(
                       sec.items.map((it) => ({
@@ -225,6 +231,9 @@ export default function GroupedRequests({ items }: { items: ItemRow[] }) {
                     {sec.dept} · {sec.requester}
                   </span>
                   <span className="text-[12px] text-muted">รับใบ {fmtDate(sec.requestDate!)}</span>
+                  <Link href={`/requests/${sec.regisNo}`} className="text-[12px] text-link hover:underline whitespace-nowrap">
+                    เปิดใบ / + เพิ่ม item →
+                  </Link>
                 </>
               )}
 
@@ -232,9 +241,9 @@ export default function GroupedRequests({ items }: { items: ItemRow[] }) {
                 {overdueCount > 0 && (
                   <span className="chip bg-coral text-white">เลยกำหนด {overdueCount}</span>
                 )}
-                <span className="font-medium text-ink">{sec.items.length}</span> item
+                <span className="font-medium text-ink">{sec.items.length}</span> รายการ
               </span>
-            </button>
+            </div>
 
             {!isCollapsed && (
               <div className="overflow-x-auto">

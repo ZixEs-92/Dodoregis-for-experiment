@@ -96,8 +96,11 @@ export default async function RequestOverviewPage({
 
       {/* รายการ item เป็นการ์ด/ปุ่ม */}
       <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
+        <div>
           <h2 className="text-[15px] font-medium text-ink">รายการทดสอบในใบนี้ ({request.items.length})</h2>
+          <p className="text-[12px] text-muted mt-0.5">
+            1 ใบรีเควสมีได้หลายรายการทดสอบ (item) · กดการ์ดเพื่อดู/แก้ไขแต่ละรายการ · เพิ่มรายการใหม่ได้ที่ปุ่มด้านล่าง
+          </p>
         </div>
 
         {request.items.length === 0 ? (
