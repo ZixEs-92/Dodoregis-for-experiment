@@ -87,9 +87,10 @@ export default async function DashboardPage() {
             ภาพรวมงานทดสอบ (นับเป็นราย item) · {requestCount} ใบรีเควส
           </p>
         </div>
-        <Link href="/analytics" className="btn-secondary btn-sm ml-auto">
-          วิเคราะห์เชิงลึก / KPI →
-        </Link>
+        <div className="ml-auto flex gap-2">
+          <Link href="/schedule" className="btn-primary btn-sm">ตารางงานรายสัปดาห์ →</Link>
+          <Link href="/analytics" className="btn-secondary btn-sm">วิเคราะห์ / KPI →</Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

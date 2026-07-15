@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 const links = [
   { href: "/", label: "หน้าหลัก" },
+  { href: "/schedule", label: "ตารางงาน" },
   { href: "/requests", label: "รายการงาน" },
   { href: "/analytics", label: "วิเคราะห์" },
   { href: "/master", label: "ตั้งค่าระบบ" },
