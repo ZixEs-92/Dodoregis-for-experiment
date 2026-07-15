@@ -93,6 +93,7 @@ function itemDataFromForm(fd: FormData) {
   return {
     partName: str(fd, "part_name")!,
     partNo: str(fd, "part_no"),
+    testName: str(fd, "test_name"),
     qty: num(fd, "qty"),
     partReceivedDate: date(fd, "part_received_date"),
     partLocationId: num(fd, "part_location"),

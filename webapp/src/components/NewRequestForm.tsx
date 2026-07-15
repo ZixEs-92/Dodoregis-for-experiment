@@ -50,6 +50,9 @@ export default function NewRequestForm({
         </p>
 
         <FieldGroup title="ชิ้นงานที่ทดสอบ" nested>
+          <Field label="ชื่อการทดสอบ (item test name)" className="sm:col-span-2">
+            <input type="text" name="test_name" placeholder="เช่น Photometric Test (KST)" className="input" />
+          </Field>
           <Field label="ชื่อชิ้นงาน / รุ่น Lamp" required className="sm:col-span-2">
             <input type="text" name="part_name" required className="input" />
           </Field>

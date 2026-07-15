@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { ALL_STATUSES, STATUS_LABEL, isOverdue, isDueSoon, isUrgent } from "@/lib/workflow";
+import { testTitle } from "@/lib/format";
 import GroupedRequests, { ItemRow } from "@/components/GroupedRequests";
 import { Prisma, RequestStatus } from "@/generated/prisma/client";
 
@@ -57,6 +58,7 @@ export default async function RequestsPage({
     itemNo: it.itemNo,
     partName: it.partName,
     partNo: it.partNo,
+    testTitle: testTitle(it.testName, it.testDetail),
     status: it.status,
     ownerName: it.owner.name,
     planEnd: it.planEnd ? it.planEnd.toISOString() : null,

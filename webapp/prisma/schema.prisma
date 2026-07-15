@@ -135,6 +135,7 @@ model TestItem {
   partName String  @map("part_name")
   partNo   String? @map("part_no")
   qty      Int?
+  testName String? @map("test_name") // ชื่อการทดสอบ/หัวข้อ (เช่น "Photometric Test (KST)") ใช้แยกแต่ละ item
 
   partReceivedDate DateTime?     @map("part_received_date")
   partLocation     PartLocation? @relation("PartLocation", fields: [partLocationId], references: [id])

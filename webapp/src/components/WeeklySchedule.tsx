@@ -9,6 +9,7 @@ import { RequestStatus } from "@/generated/prisma/client";
 export type SchedItem = {
   itemCode: string;
   partName: string;
+  testTitle: string;
   status: RequestStatus;
   planStart: string | null;
   planEnd: string | null;
@@ -47,12 +48,12 @@ function ItemChip({ it, compact }: { it: SchedItem; compact?: boolean }) {
   return (
     <Link
       href={`/items/${it.itemCode}`}
-      title={`${it.itemCode} · ${it.partName} · ${STATUS_LABEL[it.status]}${it.overdue ? " · เลยกำหนด" : ""}`}
+      title={`${it.itemCode} · ${it.testTitle ? it.testTitle + " · " : ""}${it.partName} · ${STATUS_LABEL[it.status]}${it.overdue ? " · เลยกำหนด" : ""}`}
       className={`flex items-center gap-1.5 rounded-md border px-1.5 py-1 text-[11px] transition-colors ${tone}`}
     >
       <span className={`inline-block w-2 h-2 rounded-full shrink-0 ${STATUS_FILL[it.status]}`} />
       <span className="truncate font-medium">{it.itemCode}</span>
-      {!compact && <span className="truncate text-muted">{it.partName}</span>}
+      {!compact && <span className="truncate text-muted">{it.testTitle || it.partName}</span>}
     </Link>
   );
 }
@@ -213,7 +214,7 @@ function TodayPanel({ persons, todayIndex }: { persons: Person[]; todayIndex: nu
                 <Link href={`/items/${it.itemCode}`} className="text-[13px] font-medium text-ink hover:text-link shrink-0">
                   {it.itemCode}
                 </Link>
-                <span className="text-[12px] text-muted truncate flex-1 min-w-0">{it.partName}</span>
+                <span className="text-[12px] text-muted truncate flex-1 min-w-0">{it.testTitle || it.partName}</span>
                 {it.overdue && <span className="chip bg-coral text-white shrink-0">เลยกำหนด</span>}
                 {it.urgent && !it.overdue && <span className="chip bg-coral-soft text-coral shrink-0">ด่วน</span>}
               </li>
@@ -290,7 +291,7 @@ function PersonDetail({ person }: { person: Person }) {
         {scheduled.map((it) => (
           <li key={it.itemCode} className="flex flex-wrap items-center gap-2 text-[13px]">
             <Link href={`/items/${it.itemCode}`} className="font-medium text-ink hover:text-link shrink-0">{it.itemCode}</Link>
-            <span className="text-body truncate max-w-[220px]">{it.partName}</span>
+            <span className="text-body truncate max-w-[220px]">{it.testTitle || it.partName}</span>
             <StatusBadge status={it.status} />
             <span className={`text-[12px] ${it.overdue ? "text-coral font-medium" : "text-muted"}`}>
               แผน {fmt(it.planStart)}–{fmt(it.planEnd)}{it.overdue && " · เลยกำหนด"}
@@ -306,7 +307,7 @@ function PersonDetail({ person }: { person: Person }) {
             {noPlan.map((it) => (
               <li key={it.itemCode} className="flex flex-wrap items-center gap-2 text-[13px]">
                 <Link href={`/items/${it.itemCode}`} className="font-medium text-ink hover:text-link">{it.itemCode}</Link>
-                <span className="text-body truncate max-w-[220px]">{it.partName}</span>
+                <span className="text-body truncate max-w-[220px]">{it.testTitle || it.partName}</span>
                 <StatusBadge status={it.status} />
               </li>
             ))}

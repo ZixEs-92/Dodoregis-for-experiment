@@ -1,5 +1,21 @@
 /** client-safe formatters (ไม่ import node module) */
 
+/**
+ * ชื่อการทดสอบของ item — ใช้ testName ถ้ามี ไม่งั้น fallback บรรทัดแรกของรายละเอียดเทส
+ * (item หลายอันในใบเดียวมักชื่อชิ้นงานเหมือนกัน — ชื่อทดสอบช่วยแยกออกจากกัน)
+ */
+export function testTitle(
+  testName: string | null | undefined,
+  testDetail: string | null | undefined
+): string {
+  const n = (testName ?? "").trim();
+  if (n) return n;
+  const d = (testDetail ?? "").trim();
+  if (!d) return "";
+  const first = d.split(/\r?\n/)[0].trim();
+  return first.length > 48 ? `${first.slice(0, 48)}…` : first;
+}
+
 export function humanSize(bytes: number | null | undefined): string {
   if (!bytes) return "";
   if (bytes < 1024) return `${bytes} B`;

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { isOverdue, isUrgent } from "@/lib/workflow";
+import { testTitle } from "@/lib/format";
 import WeeklySchedule, { Person, DayHead, SchedItem } from "@/components/WeeklySchedule";
 
 export const dynamic = "force-dynamic";
@@ -72,6 +73,7 @@ export default async function SchedulePage({
     const schedItem: SchedItem = {
       itemCode: it.itemCode,
       partName: it.partName,
+      testTitle: testTitle(it.testName, it.testDetail),
       status: it.status,
       planStart: it.planStart ? it.planStart.toISOString() : null,
       planEnd: it.planEnd ? it.planEnd.toISOString() : null,

@@ -13,6 +13,7 @@ export type ItemRow = {
   itemNo: number;
   partName: string;
   partNo: string | null;
+  testTitle: string;
   status: RequestStatus;
   ownerName: string;
   planEnd: string | null;
@@ -260,7 +261,7 @@ export default function GroupedRequests({ items }: { items: ItemRow[] }) {
                         />
                       </th>
                       <th className="p-3 text-[12px] font-medium text-muted uppercase tracking-wide">Item</th>
-                      <th className="p-3 text-[12px] font-medium text-muted uppercase tracking-wide">ชิ้นงาน / พาร์ทโน</th>
+                      <th className="p-3 text-[12px] font-medium text-muted uppercase tracking-wide">การทดสอบ / ชิ้นงาน</th>
                       <th className="p-3 text-[12px] font-medium text-muted uppercase tracking-wide">ผู้รับผิดชอบ</th>
                       {mode === "request" ? (
                         <th className="p-3 text-[12px] font-medium text-muted uppercase tracking-wide">สถานะ</th>
@@ -294,7 +295,8 @@ export default function GroupedRequests({ items }: { items: ItemRow[] }) {
                           </Link>
                         </td>
                         <td className="p-3">
-                          <div className="text-ink">{it.partName}</div>
+                          {it.testTitle && <div className="text-ink font-medium">🧪 {it.testTitle}</div>}
+                          <div className={it.testTitle ? "text-[12px] text-muted" : "text-ink"}>{it.partName}</div>
                           {it.partNo && <div className="text-[12px] text-muted">{it.partNo}</div>}
                         </td>
                         <td className="p-3 whitespace-nowrap">

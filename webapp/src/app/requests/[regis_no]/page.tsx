@@ -5,6 +5,7 @@ import { generateQrDataUrl } from "@/lib/qr";
 import { toDisplayDate } from "@/lib/date";
 import { isOverdue, isUrgent } from "@/lib/workflow";
 import { requestRollup, PHASE_LABEL, PHASE_COLOR } from "@/lib/rollup";
+import { testTitle } from "@/lib/format";
 import StatusBadge from "@/components/StatusBadge";
 import AddItemForm from "@/components/AddItemForm";
 import AttachmentsSection from "@/components/AttachmentsSection";
@@ -123,9 +124,12 @@ export default async function RequestOverviewPage({
                     </span>
                     <StatusBadge status={it.status} />
                   </div>
-                  <div className="text-[15px] text-ink">
-                    {it.partName}
-                    {it.partNo && <span className="text-muted text-[13px]"> · {it.partNo}</span>}
+                  {testTitle(it.testName, it.testDetail) && (
+                    <div className="text-[15px] font-medium text-ink">🧪 {testTitle(it.testName, it.testDetail)}</div>
+                  )}
+                  <div className="text-[13px] text-muted">
+                    ชิ้นงาน: {it.partName}
+                    {it.partNo && <span> · {it.partNo}</span>}
                   </div>
                   <div className="flex items-center justify-between text-[12px]">
                     <span className="flex items-center gap-1.5 text-muted">

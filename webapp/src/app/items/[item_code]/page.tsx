@@ -11,6 +11,7 @@ import {
 } from "@/lib/workflow";
 import { leadTime, slaStatus, SLA_STATUS_LABEL, SLA_STATUS_COLOR } from "@/lib/tat";
 import { requestRollup, PHASE_LABEL, PHASE_COLOR } from "@/lib/rollup";
+import { testTitle } from "@/lib/format";
 import StatusBadge from "@/components/StatusBadge";
 import StatusStepper from "@/components/StatusStepper";
 import ItemDetailsForm from "@/components/ItemDetailsForm";
@@ -74,6 +75,7 @@ export default async function ItemDetailPage({
   const urgent = isUrgent(item.remark);
   const latestReport = item.reports[0];
   const roll = requestRollup(item.request.items);
+  const itemTitle = testTitle(item.testName, item.testDetail);
 
   // TAT / SLA
   const slaDays = item.request.requestDept.slaDays;
@@ -150,6 +152,7 @@ export default async function ItemDetailPage({
       <ItemDetailsForm
         action={updateBound}
         defaults={{
+          testName: item.testName ?? "",
           partName: item.partName,
           partNo: item.partNo ?? "",
           qty: item.qty,
@@ -330,9 +333,10 @@ export default async function ItemDetailPage({
           <StatusBadge status={item.status} />
           {urgent && <span className="chip bg-coral text-white font-semibold">งานด่วน</span>}
         </div>
-        <p className="text-[15px] text-body">
-          {item.partName}
-          {item.partNo && <span className="text-muted"> · {item.partNo}</span>}
+        {itemTitle && <p className="text-[17px] font-medium text-ink">🧪 {itemTitle}</p>}
+        <p className="text-[14px] text-muted">
+          ชิ้นงาน: {item.partName}
+          {item.partNo && <span> · {item.partNo}</span>}
         </p>
         <div className="flex items-center gap-2 text-[13px] text-muted">
           <span className="grid place-items-center w-6 h-6 rounded-full bg-surface-strong text-ink text-[11px] font-medium shrink-0">
