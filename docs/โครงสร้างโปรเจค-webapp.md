@@ -22,6 +22,22 @@
 - 🌐 `APP_BASE_URL` ตั้งเป็น LAN IP แล้ว (`http://172.20.10.8:3000`) เพื่อให้สแกน QR จากมือถือได้ — IP นี้เปลี่ยนได้ ต้องแก้ตาม
 - DB จริงอยู่ที่ `webapp/dev.db` · ไฟล์อัปโหลด `webapp/uploads/` · `.env` (ทั้งหมดไม่ขึ้น git)
 
+## ▶️ ทำต่อพรุ่งนี้ / จุดที่คุยค้าง (อัปเดต 2026-07-16)
+
+**เรื่องที่ค้าง: ทำให้ "ที่เก็บ raw data" กดเปิดโฟลเดอร์ได้จริง**
+- สถานะตอนนี้: ช่อง raw data ถ้าใส่ **http/https = เป็นลิงก์กดได้** · ถ้าเป็น path เครื่อง/UNC (`\\EVA-NAS02\EVA-Shared`) = แสดง text + **ปุ่มคัดลอก** (เอาไปวางใน File Explorer)
+- ข้อจำกัด: เบราว์เซอร์บล็อก `file://`/UNC เสมอ (แม้อยู่ในเน็ตองค์กร/VPN) → ต้องมีชั้น http(s) ครอบถึงจะกดเปิดได้
+- ผู้ใช้บอกว่า NAS `\\EVA-NAS02` **รันอยู่บน server บริษัท** · ยังไม่ตอบ: **(1) server OS อะไร (Windows Server/Linux/NAS OS)** · **(2) จะโฮสต์เว็บแอปที่ไหน (เครื่องนี้/server เดียวกับ NAS/ที่อื่น)**
+- ทางเลือกที่เสนอไป (รอผู้ใช้เลือก):
+  1. **Windows Server → IIS** ชี้ virtual directory ไปที่แชร์ → ได้ https link (ง่ายสุดถ้าเป็น Windows)
+  2. ลง **Filebrowser/Nextcloud** บน server → https link + login
+  3. เข้าจากนอกไม่ต้อง VPN → **Cloudflare Tunnel** ครอบ server (ดู `docs/แผน-cloudflare-tunnel-access.md`)
+  4. **ให้แอป Dodoregis เสิร์ฟไฟล์เอง** (ถ้าโฮสต์แอปบน server เดียวกับ NAS) — เพิ่ม route proxy อ่านไฟล์จากแชร์ → ลิงก์กดเปิด/ดาวน์โหลดในแอป (เป็นงาน dev · ผมเสนอทำให้ได้)
+  5. **SharePoint/OneDrive sync** (ถ้ามี M365) — universal สุด กดได้ทุกที่ไม่ต้อง VPN
+- **พรุ่งนี้เริ่ม:** ถามผู้ใช้ 2 ข้อข้างบน → ถ้าเลือกข้อ 4 เขียน route ให้แอปเสิร์ฟไฟล์จากแชร์ · ถ้าเลือก IIS/Filebrowser เขียนคู่มือ setup
+
+**Backlog อื่นที่ค้าง:** ดูหัวข้อ Backlog ด้านล่าง (auth เป็นข้อ 1, groundwork equipment/method/portal, deploy จริง)
+
 ## เริ่มรันเพื่อทำต่อ
 
 ```bash
