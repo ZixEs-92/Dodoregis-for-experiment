@@ -1,17 +1,26 @@
 # โครงสร้างโปรเจค webapp + คู่มือมาทำต่อ
 
-> อัปเดต 2026-07-14 · เขียนไว้เผื่อกลับมาทำต่อ
+> อัปเดต 2026-07-16 · เขียนไว้เผื่อกลับมาทำต่อ
 
 ## สถานะล่าสุด
 
-- ✅ Prototype ครบ + redesign สไตล์ Airtable · โครงสร้าง **multi-item**, **master data** (`/master`), **ไฟล์แนบ**
-- ✅ หน้ารายการงานสลับ **ตามสถานะ/ตามใบรีเควส** + ย่อ/ขยายได้ · dashboard มี **Loading รายบุคคล** (วันนี้/สัปดาห์นี้/ทั้งหมด)
-- ✅ **audit trail** (`status_logs`) + **chain of custody** (`location_logs`) → timeline บนหน้า item
-- ✅ **TAT/SLA** (เป้าต่อแผนกที่ `/master`, แสดง lead time บนหน้า item)
-- ✅ **แจ้งเตือน** — ศูนย์ในแอป (`/notifications` + bell) + `npm run notify` ส่งออก webhook/LINE
-- ✅ **`/analytics`** — throughput, on-time%, lead time, retest/pass rate, แยกตามแผนก, คอขวด, aging WIP, CFD
+- ✅ Prototype ครบ + redesign สไตล์ Airtable · **multi-item**, **master data** (`/master`), **ไฟล์แนบ**
+- ✅ **โมเดล 2 ชั้น**: ใบรีเควสมี **สถานะรวม (rollup: รอเริ่ม/กำลังดำเนินการ/เสร็จ + progress X/Y)** คำนวณจาก item · item มีสถานะของตัวเอง — โชว์สอดคล้องทุกหน้า (`lib/rollup.ts`)
+- ✅ **หน้า hub ใบรีเควส** `/requests/[regis]` = การ์ด item + สถานะรวม + **QR ระดับใบ** (QR ชี้มาที่นี่) · `/labels?regis=` ออก label ระดับใบ
+- ✅ **หน้า item เป็นแท็บ** (`Tabs.tsx`): ภาพรวม/รายละเอียดเทส/ความคืบหน้า/รีพอร์ท/ไฟล์แนบ/ที่เก็บ&ประวัติ — ลดความรก
+- ✅ **ชื่อการทดสอบ** (`testName` + `testTitle()` fallback จาก test_detail) แยก item ที่ชื่อชิ้นงานซ้ำกัน
+- ✅ **ตารางงานรายสัปดาห์** `/schedule` — คน × วัน (จ–อา) + แผง "วันนี้ใครทำอะไร" + กดดูรายคน
+- ✅ หน้ารายการงานสลับ **ตามสถานะ/ตามใบรีเควส** + ย่อ/ขยาย + badge สถานะรวม + ลิงก์ "เปิดใบ/เพิ่ม item"
+- ✅ Dashboard: Loading รายบุคคล (วันนี้/สัปดาห์/ทั้งหมด) + on-time% + aging buckets + การ์ดสถานะรวมใบ
+- ✅ **audit trail** (`status_logs`) + **chain of custody** (`location_logs`) → timeline หน้า item
+- ✅ **TAT/SLA** (เป้าต่อแผนกที่ `/master`) · **แจ้งเตือน** (`/notifications` + bell + `npm run notify` ส่งออก webhook/LINE)
+- ✅ **LINE OA** — หน้า `/settings/line` (คู่มือ + ทดสอบส่งจริง) · `lib/line.ts`
+- ✅ **`/analytics`** — throughput, on-time%, lead time, retest/pass, แยกแผนก, คอขวด, aging WIP, CFD
+- ✅ **`/reports` + `/api/export`** — สรุปงานรายปี/เดือน แยกแผนก/ผู้รีเควส/ผู้รับผิดชอบ + ดาวน์โหลด CSV (UTF-8 BOM)
 - ✅ groundwork ฟีเจอร์ 5-7 (schema พร้อม): equipment, test_methods, requester portal token
-- DB จริงอยู่ที่ `webapp/dev.db` · ไฟล์อัปโหลดอยู่ `webapp/uploads/` (ทั้งคู่ไม่ขึ้น git)
+- 📦 **ทั้งโปรเจครวมเป็น 1 git repo ที่ระดับบน → GitHub: https://github.com/ZixEs-92/Dodoregis-for-experiment** (branch main)
+- 🌐 `APP_BASE_URL` ตั้งเป็น LAN IP แล้ว (`http://172.20.10.8:3000`) เพื่อให้สแกน QR จากมือถือได้ — IP นี้เปลี่ยนได้ ต้องแก้ตาม
+- DB จริงอยู่ที่ `webapp/dev.db` · ไฟล์อัปโหลด `webapp/uploads/` · `.env` (ทั้งหมดไม่ขึ้น git)
 
 ## เริ่มรันเพื่อทำต่อ
 
@@ -40,7 +49,7 @@ npm run dev        # เปิด http://localhost:3000  (ข้อมูลท�
 ```
 webapp/
 ├─ prisma/
-│  ├─ schema.prisma        โครงสร้าง DB 6 ตาราง (ดู docs/data-model.md)
+│  ├─ schema.prisma        โครงสร้าง DB (test_requests/items/runs/reports/attachments + logs/notifications + master · ดู docs/data-model.md)
 │  ├─ seed.ts              ข้อมูลตัวอย่าง (npx prisma db seed)
 │  ├─ clear.ts             ล้างงานเก็บ master (npm run db:clear)
 │  ├─ notify.ts            สคริปต์แจ้งเตือน standalone (npm run notify · ตั้ง cron)
@@ -57,23 +66,27 @@ webapp/
    │  │  ├─ page.tsx           /requests — รายการจัดกลุ่มตามใบรีเควส
    │  │  ├─ new/page.tsx       /requests/new — ลงใบใหม่ + item แรก
    │  │  └─ [regis_no]/page.tsx  ภาพรวมใบรีเควส + รายการ item + ไฟล์แนบระดับใบ
-   │  ├─ items/[item_code]/page.tsx  ⭐ รายละเอียด item (TAT/แก้/stepper/ย้ายที่เก็บ/runs/report/ไฟล์แนบ/QR/timeline)
+   │  ├─ items/[item_code]/page.tsx  ⭐ รายละเอียด item แบบ **แท็บ** (ภาพรวม/รายละเอียด/runs/report/ไฟล์/ประวัติ)
+   │  ├─ schedule/page.tsx    ⭐ /schedule — ตารางงานรายสัปดาห์ (คน×วัน + วันนี้)
    │  ├─ analytics/page.tsx   ⭐ /analytics — KPI + คอขวด + aging WIP + CFD (ช่วง month/30d/all)
+   │  ├─ reports/page.tsx     ⭐ /reports — สรุปรายปี/เดือน + ปุ่มดาวน์โหลด CSV
    │  ├─ notifications/page.tsx  /notifications — ศูนย์แจ้งเตือน (generate on load + mark read)
-   │  ├─ master/page.tsx      /master — จัดการ dropdown (แผนก/ทีม/ที่เก็บ) + เป้า SLA
-   │  ├─ labels/page.tsx      /labels — พิมพ์ QR label 50×25mm ต่อ item
-   │  └─ api/attachments/[id]/route.ts  เสิร์ฟ/เปิดไฟล์แนบ
-   ├─ components/         UI ย่อย (ฟอร์ม, GroupedRequests, LoadingBoard, MoveLocationForm, ActivityTimeline, SlaSettings, NavBar+bell)
+   │  ├─ settings/line/page.tsx  /settings/line — ผูก LINE OA + ทดสอบส่ง
+   │  ├─ master/page.tsx      /master — dropdown (แผนก/ทีม/ที่เก็บ) + เป้า SLA
+   │  ├─ labels/page.tsx      /labels — พิมพ์ QR label 50×25mm (?regis= ระดับใบ / ?ids= ระดับ item)
+   │  ├─ api/attachments/[id]/route.ts  เสิร์ฟ/เปิดไฟล์แนบ
+   │  └─ api/export/route.ts  ⭐ ดาวน์โหลด CSV (type=detail|dept|requester|owner|month)
+   ├─ components/         Tabs, WeeklySchedule, GroupedRequests, LoadingBoard, MoveLocationForm,
+   │                      ActivityTimeline, SlaSettings, LineTestForm, ฟอร์มต่างๆ, NavBar+bell
    └─ lib/
       ├─ prisma.ts        Prisma client (ต้องใช้ผ่าน better-sqlite3 adapter)
       ├─ workflow.ts      ⭐ สถานะ 10 ค่า, สี/สีทึบกราฟ, validation, overdue/urgent, label ที่เก็บ
+      ├─ rollup.ts        ⭐ สถานะรวมใบรีเควส (phase + progress) จาก items
       ├─ tat.ts           lead time + SLA status (TAT)
       ├─ analytics.ts     ⭐ time-in-status (คอขวด), aging, CFD replay
-      ├─ notifications.ts / notify-external.ts  สร้างแจ้งเตือน + ส่งออก webhook/LINE
-      ├─ regisNo.ts       ออกเลข TR-YYMM-### และ item code -NN
-      ├─ uploads.ts       จัดการไฟล์อัปโหลดบนดิสก์ (server เท่านั้น)
-      ├─ qr.ts            สร้าง QR (รองรับ APP_BASE_URL)
-      ├─ date.ts / format.ts  ฟอร์แมตวันที่/ขนาดไฟล์
+      ├─ report.ts / csv.ts  ⭐ ดึง+สรุปข้อมูลรายงาน + สร้าง CSV (BOM)
+      ├─ notifications.ts / notify-external.ts / line.ts  แจ้งเตือน + ส่งออก webhook/LINE
+      ├─ regisNo.ts · uploads.ts · qr.ts · date.ts · format.ts (มี testTitle)
 ```
 
 ## จุดที่ต้องรู้ก่อนแก้ (สำคัญ)
@@ -97,6 +110,15 @@ webapp/
 6. label แบบพิมพ์ลง A4 หลายดวง/แผ่น, favicon/logo, รูปถ่ายชิ้นงานแบบ gallery
 7. หน้า not-found คืน HTTP 404 จริง (ตอนนี้คืน 200 เพราะ loading.tsx stream)
 
-> ✅ ทำแล้ว: audit trail (status/location logs), แจ้งเตือน (in-app + external), หน้า KPI/analytics (คอขวด/CFD/aging)
+> ✅ ทำแล้วในเซสชันล่าสุด: โมเดล 2 ชั้น (rollup) + QR ระดับใบ, หน้า item แบบแท็บ, ชื่อการทดสอบ (testName),
+> ตารางงานรายสัปดาห์ (`/schedule`), รายงาน+export CSV (`/reports`), หน้า LINE OA (`/settings/line`),
+> audit/location logs, แจ้งเตือน, analytics (คอขวด/CFD/aging), รวม repo + push GitHub
+
+## Deployment / เข้าถึงจากมือถือ (มีเอกสารแผนแล้ว ยังไม่ได้ทำจริง)
+
+- `docs/แผน-เข้าถึงจากมือถือ-ฟรี.md` · `docs/แผน-cloudflare-tunnel-access.md` · `docs/แผน-deploy-railway.md`
+- สรุป: **LAN** = ฟรีสุดสำหรับใช้ในออฟฟิศ (ตอนนี้ตั้ง `APP_BASE_URL` เป็น LAN IP แล้ว) · **Tailscale** ฟรีสำหรับทีมนอกออฟฟิศ ·
+  **Cloudflare Tunnel + Access** (เสียแค่ค่าโดเมน) ถ้าอยากสแกน QR จากที่ไหนก็ได้ + มี login · **Railway** ไม่ฟรีจริง (~$5/เดือน)
+- ถ้าเปิด public ต้องทำ **auth** ในแอปก่อน (อยู่ใน backlog ข้อ 1) · ยังไม่ตั้ง firewall port 3000 (ถ้ามือถือเข้าไม่ได้ให้เปิด)
 
 ดูรายละเอียดบั๊กที่แก้ไปแล้วใน `docs/แผนปรับปรุง-webapp.md`

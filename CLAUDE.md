@@ -10,9 +10,10 @@
 - แผนโปรเจคฉบับเต็ม: `docs/แผนโปรเจค_ระบบลงทะเบียนติดตามงานทดสอบ.docx`
 - Data model ละเอียด: `docs/data-model.md` (อัปเดตเป็นโครงสร้าง multi-item + logs/notifications แล้ว)
 - Phase 1 (Google Sheets + AppSheet) มี template พร้อมใช้แล้ว: `template/` (xlsx + Apps Script)
-- **Phase 2: Web app พัฒนาแล้ว** ที่ `webapp/` (Next.js + SQLite/Prisma + Tailwind) — ครบ: multi-item, master data, ไฟล์แนบ, audit trail (`status_logs`) + chain of custody (`location_logs`), TAT/SLA, แจ้งเตือน (in-app + webhook/LINE), หน้า analytics (คอขวด/aging WIP/CFD)
+- **Phase 2: Web app พัฒนาแล้ว** ที่ `webapp/` (Next.js 16 + SQLite/Prisma 7 + Tailwind) — ครบ: โมเดล 2 ชั้น (ใบมีสถานะรวม rollup + item มีสถานะเอง), หน้า item แบบแท็บ, QR ระดับใบ, ชื่อการทดสอบ (testName), multi-item, master data, ไฟล์แนบ, audit/location logs, TAT/SLA, แจ้งเตือน (in-app + webhook/LINE + หน้า `/settings/line`), `/schedule` (ตารางงานสัปดาห์), `/analytics` (คอขวด/CFD/aging), `/reports` + `/api/export` (CSV รายปี/เดือน)
   - เริ่มรัน: `cd webapp && npm run dev` · คู่มือ/โครงสร้าง: `docs/โครงสร้างโปรเจค-webapp.md` · README: `webapp/README.md`
-- ขั้นถัดไป (backlog): auth + `changed_by`, เปิด groundwork ฟีเจอร์ equipment/test method/requester portal, ตั้ง cron แจ้งเตือนจริง — ดู `docs/โครงสร้างโปรเจค-webapp.md`
+  - **GitHub (repo เดียวทั้งโปรเจค):** https://github.com/ZixEs-92/Dodoregis-for-experiment (branch main) · `.env`/`dev.db`/`uploads/` ไม่ขึ้น git
+- ขั้นถัดไป (backlog): auth + `changed_by`, เปิด groundwork equipment/test method/requester portal, ตั้ง cron แจ้งเตือนจริง, deploy/เข้าถึงมือถือ (ดูเอกสารแผนใน `docs/`) — รวมทั้งหมดใน `docs/โครงสร้างโปรเจค-webapp.md`
 
 ## Data Model (สรุป — ฉบับเต็มดู docs/data-model.md)
 4 ตาราง เชื่อมด้วย `regis_no` รูปแบบ `TR-YYMM-###` (เช่น TR-2607-015):
