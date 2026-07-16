@@ -12,6 +12,7 @@ import {
 import { leadTime, slaStatus, SLA_STATUS_LABEL, SLA_STATUS_COLOR } from "@/lib/tat";
 import { requestRollup, PHASE_LABEL, PHASE_COLOR } from "@/lib/rollup";
 import { testTitle, isHttpUrl } from "@/lib/format";
+import CopyButton from "@/components/CopyButton";
 import StatusBadge from "@/components/StatusBadge";
 import StatusStepper from "@/components/StatusStepper";
 import ItemDetailsForm from "@/components/ItemDetailsForm";
@@ -146,8 +147,13 @@ export default async function ItemDetailPage({
                 <a href={item.rawDataLocation!} target="_blank" rel="noopener noreferrer" className="text-link hover:underline break-all">
                   {item.rawDataLocation} ↗
                 </a>
+              ) : item.rawDataLocation ? (
+                <span className="inline-flex flex-wrap items-center gap-2">
+                  <span className="break-all">{item.rawDataLocation}</span>
+                  <CopyButton value={item.rawDataLocation} />
+                </span>
               ) : (
-                item.rawDataLocation ?? "—"
+                "—"
               )
             }
           />

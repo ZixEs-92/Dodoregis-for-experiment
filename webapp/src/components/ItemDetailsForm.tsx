@@ -103,7 +103,7 @@ export default function ItemDetailsForm({
         <Field label="ที่เก็บ raw data">
           <input type="text" name="raw_data_location" defaultValue={defaults.rawDataLocation} placeholder="วางลิงก์ Google Drive / SharePoint (https://…)" className="input" />
           <span className="text-[11px] text-muted">
-            ใส่ลิงก์คลาวด์ (http/https) จึงจะคลิกเปิดโฟลเดอร์ได้ · path ในเครื่อง เช่น C:\… หรือ \\server\… เปิดจากเว็บไม่ได้
+            ลิงก์คลาวด์ (http/https) = คลิกเปิดได้เลย · path เน็ตเวิร์ก \\server\… (เช่น \\EVA-NAS02\…) กดจากเว็บไม่ได้ แต่มีปุ่ม “คัดลอก” ให้เอาไปวางใน File Explorer (ต้องอยู่ในเน็ตองค์กร/VPN)
           </span>
         </Field>
         <Field label="Remark ของ item" className="sm:col-span-2">
