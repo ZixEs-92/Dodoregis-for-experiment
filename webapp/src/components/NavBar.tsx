@@ -8,6 +8,7 @@ const links = [
   { href: "/schedule", label: "ตารางงาน" },
   { href: "/requests", label: "รายการงาน" },
   { href: "/analytics", label: "วิเคราะห์" },
+  { href: "/reports", label: "รายงาน" },
   { href: "/master", label: "ตั้งค่าระบบ" },
 ];
 
