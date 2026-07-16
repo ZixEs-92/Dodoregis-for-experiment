@@ -11,7 +11,7 @@ import {
 } from "@/lib/workflow";
 import { leadTime, slaStatus, SLA_STATUS_LABEL, SLA_STATUS_COLOR } from "@/lib/tat";
 import { requestRollup, PHASE_LABEL, PHASE_COLOR } from "@/lib/rollup";
-import { testTitle } from "@/lib/format";
+import { testTitle, isHttpUrl } from "@/lib/format";
 import StatusBadge from "@/components/StatusBadge";
 import StatusStepper from "@/components/StatusStepper";
 import ItemDetailsForm from "@/components/ItemDetailsForm";
@@ -139,7 +139,18 @@ export default async function ItemDetailPage({
           <Info label="จริง เริ่ม – จบ" value={`${toDisplayDate(item.actualStart)} – ${toDisplayDate(item.actualEnd)}`} />
           <Info label="ที่เก็บพาร์ท" value={item.partLocation?.name ?? "—"} />
           <Info label="ที่เก็บหลังเสร็จ" value={item.finishedPartLocation?.name ?? "—"} />
-          <Info label="ที่เก็บ raw data" value={item.rawDataLocation ?? "—"} />
+          <Info
+            label="ที่เก็บ raw data"
+            value={
+              isHttpUrl(item.rawDataLocation) ? (
+                <a href={item.rawDataLocation!} target="_blank" rel="noopener noreferrer" className="text-link hover:underline break-all">
+                  {item.rawDataLocation} ↗
+                </a>
+              ) : (
+                item.rawDataLocation ?? "—"
+              )
+            }
+          />
           {item.remark && <Info label="หมายเหตุ" value={item.remark} />}
         </dl>
       </section>
@@ -368,11 +379,11 @@ function Field({ label, className, children }: { label: string; className?: stri
   );
 }
 
-function Info({ label, value }: { label: string; value: string }) {
+function Info({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex gap-2">
       <dt className="text-muted shrink-0 w-32">{label}</dt>
-      <dd className="text-ink">{value}</dd>
+      <dd className="text-ink min-w-0">{value}</dd>
     </div>
   );
 }
