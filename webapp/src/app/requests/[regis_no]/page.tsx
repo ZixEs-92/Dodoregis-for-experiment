@@ -91,7 +91,16 @@ export default async function RequestOverviewPage({
         <div className="flex flex-col items-center gap-2 shrink-0 self-center sm:self-start">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={qrDataUrl} alt={`QR ${regisNo}`} className="w-28 h-28 border border-hairline rounded-lg bg-white p-2" />
+          <span className="text-[11px] text-muted">QR ใบรีเควส</span>
           <Link href={`/labels?regis=${regisNo}`} className="text-[12px] text-link hover:underline">พิมพ์ label ใบนี้</Link>
+          {request.items.length > 0 && (
+            <Link
+              href={`/labels?ids=${request.items.map((it) => it.itemCode).join(",")}`}
+              className="text-[12px] text-link hover:underline"
+            >
+              พิมพ์ QR ทุก item ({request.items.length})
+            </Link>
+          )}
         </div>
       </div>
 

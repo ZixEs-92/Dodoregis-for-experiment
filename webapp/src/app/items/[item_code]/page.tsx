@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { generateQrDataUrl } from "@/lib/qr";
 import { toInputDate, toDisplayDate } from "@/lib/date";
 import {
   isUrgent,
@@ -77,6 +78,7 @@ export default async function ItemDetailPage({
   const latestReport = item.reports[0];
   const roll = requestRollup(item.request.items);
   const itemTitle = testTitle(item.testName, item.testDetail);
+  const itemQr = await generateQrDataUrl(`/items/${item.itemCode}`, 160);
 
   // TAT / SLA
   const slaDays = item.request.requestDept.slaDays;
@@ -343,23 +345,32 @@ export default async function ItemDetailPage({
         <span className={`chip ${PHASE_COLOR[roll.phase]}`}>{PHASE_LABEL[roll.phase]} · เสร็จ {roll.done}/{roll.total}</span>
       </Link>
 
-      {/* หัว item + สถานะปัจจุบัน (เห็นตลอด) */}
-      <div className="card p-5 sm:p-6 flex flex-col gap-2">
-        <div className="flex items-center gap-2 flex-wrap">
-          <h1 className="text-[22px] font-medium text-ink sm:text-[26px]">{item.itemCode}</h1>
-          <StatusBadge status={item.status} />
-          {urgent && <span className="chip bg-coral text-white font-semibold">งานด่วน</span>}
+      {/* หัว item + สถานะปัจจุบัน (เห็นตลอด) + QR ระดับ item */}
+      <div className="card p-5 sm:p-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-2 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-[22px] font-medium text-ink sm:text-[26px]">{item.itemCode}</h1>
+            <StatusBadge status={item.status} />
+            {urgent && <span className="chip bg-coral text-white font-semibold">งานด่วน</span>}
+          </div>
+          {itemTitle && <p className="text-[17px] font-medium text-ink">🧪 {itemTitle}</p>}
+          <p className="text-[14px] text-muted">
+            ชิ้นงาน: {item.partName}
+            {item.partNo && <span> · {item.partNo}</span>}
+          </p>
+          <div className="flex items-center gap-2 text-[13px] text-muted">
+            <span className="grid place-items-center w-6 h-6 rounded-full bg-surface-strong text-ink text-[11px] font-medium shrink-0">
+              {item.owner.name.slice(0, 1)}
+            </span>
+            {item.owner.name} · {item.request.requestDept.name} · ผู้รีเควส {item.request.requester}
+          </div>
         </div>
-        {itemTitle && <p className="text-[17px] font-medium text-ink">🧪 {itemTitle}</p>}
-        <p className="text-[14px] text-muted">
-          ชิ้นงาน: {item.partName}
-          {item.partNo && <span> · {item.partNo}</span>}
-        </p>
-        <div className="flex items-center gap-2 text-[13px] text-muted">
-          <span className="grid place-items-center w-6 h-6 rounded-full bg-surface-strong text-ink text-[11px] font-medium shrink-0">
-            {item.owner.name.slice(0, 1)}
-          </span>
-          {item.owner.name} · {item.request.requestDept.name} · ผู้รีเควส {item.request.requester}
+
+        <div className="flex flex-col items-center gap-2 shrink-0 self-center sm:self-start">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={itemQr} alt={`QR ${item.itemCode}`} className="w-28 h-28 border border-hairline rounded-lg bg-white p-2" />
+          <span className="text-[11px] text-muted">QR รายการนี้</span>
+          <Link href={`/labels?ids=${item.itemCode}`} className="text-[12px] text-link hover:underline">พิมพ์ label item นี้</Link>
         </div>
       </div>
 
