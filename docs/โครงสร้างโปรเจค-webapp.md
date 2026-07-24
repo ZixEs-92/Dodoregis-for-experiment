@@ -7,6 +7,7 @@
 - ✅ Prototype ครบ + redesign สไตล์ Airtable · **multi-item**, **master data** (`/master`), **ไฟล์แนบ**
 - ✅ **โมเดล 2 ชั้น**: ใบรีเควสมี **สถานะรวม (rollup: รอเริ่ม/กำลังดำเนินการ/เสร็จ + progress X/Y)** คำนวณจาก item · item มีสถานะของตัวเอง — โชว์สอดคล้องทุกหน้า (`lib/rollup.ts`)
 - ✅ **หน้า hub ใบรีเควส** `/requests/[regis]` = การ์ด item + สถานะรวม + **QR ระดับใบ** (QR ชี้มาที่นี่) · `/labels?regis=` ออก label ระดับใบ
+- ✅ **QR ระดับ item** — โชว์บนหน้า item เอง (สแกนเปิดงานนั้นตรง) + ปุ่ม "พิมพ์ label item นี้" · หน้าใบมีปุ่ม "พิมพ์ QR ทุก item" (`/labels?ids=`)
 - ✅ **หน้า item เป็นแท็บ** (`Tabs.tsx`): ภาพรวม/รายละเอียดเทส/ความคืบหน้า/รีพอร์ท/ไฟล์แนบ/ที่เก็บ&ประวัติ — ลดความรก
 - ✅ **ชื่อการทดสอบ** (`testName` + `testTitle()` fallback จาก test_detail) แยก item ที่ชื่อชิ้นงานซ้ำกัน
 - ✅ **ตารางงานรายสัปดาห์** `/schedule` — คน × วัน (จ–อา) + แผง "วันนี้ใครทำอะไร" + กดดูรายคน
@@ -22,9 +23,20 @@
 - 🌐 `APP_BASE_URL` ตั้งเป็น LAN IP แล้ว (`http://172.20.10.8:3000`) เพื่อให้สแกน QR จากมือถือได้ — IP นี้เปลี่ยนได้ ต้องแก้ตาม
 - DB จริงอยู่ที่ `webapp/dev.db` · ไฟล์อัปโหลด `webapp/uploads/` · `.env` (ทั้งหมดไม่ขึ้น git)
 
-## ▶️ ทำต่อพรุ่งนี้ / จุดที่คุยค้าง (อัปเดต 2026-07-16)
+## ▶️ ทำต่อ / จุดที่คุยค้าง (อัปเดต 2026-07-23)
 
-**เรื่องที่ค้าง: ทำให้ "ที่เก็บ raw data" กดเปิดโฟลเดอร์ได้จริง**
+**เพิ่งทำเสร็จ (session 2026-07-23):**
+- ✅ **QR ระดับ item** บนหน้า item + ปุ่มพิมพ์ label เดี่ยว/ทุก item — **commit `534d8d3` (ยังไม่ push)**
+- ✅ **สไลด์นำเสนอผู้บริหาร** `docs/Dodoregis-นำเสนอผู้บริหาร.pptx` (18 สไลด์ + สกรีนช็อตหน้าจอจริง · สร้างด้วย python-pptx สคริปต์อยู่ใน scratchpad) — **ยังไม่ commit**
+- ✅ **แผน auth/requester portal** `docs/แผน-auth-user-แผนกเพิ่มงานเอง.md` + memory `plan-auth-requester-portal` — **ยังไม่ commit**
+
+**งานหลักถัดไป (พร้อมเริ่ม): implement Phase 3 — auth + ให้แผนกเพิ่มงานเอง**
+- อ่านแผนเต็ม: `docs/แผน-auth-user-แผนกเพิ่มงานเอง.md`
+- ตัดสินใจแล้ว: บัญชีในระบบ (user/pass + bcrypt) · 4 roles (Admin/Engineer/Requester/Viewer) · requester เห็นเฉพาะแผนกตัวเอง
+- เริ่มที่ **Phase 3a (auth core):** โมเดล `User`, login/logout, session (jose cookie), `middleware.ts`, seed admin, เติม `changedBy` จาก session
+- ระวัง: Phase 3c ทำ `TestItem.ownerId` เป็น nullable → กระทบ dashboard/schedule/item/report ต้อง handle "ยังไม่มอบหมาย"
+
+**เรื่องที่ค้าง (2): ทำให้ "ที่เก็บ raw data" กดเปิดโฟลเดอร์ได้จริง**
 - สถานะตอนนี้: ช่อง raw data ถ้าใส่ **http/https = เป็นลิงก์กดได้** · ถ้าเป็น path เครื่อง/UNC (`\\EVA-NAS02\EVA-Shared`) = แสดง text + **ปุ่มคัดลอก** (เอาไปวางใน File Explorer)
 - ข้อจำกัด: เบราว์เซอร์บล็อก `file://`/UNC เสมอ (แม้อยู่ในเน็ตองค์กร/VPN) → ต้องมีชั้น http(s) ครอบถึงจะกดเปิดได้
 - ผู้ใช้บอกว่า NAS `\\EVA-NAS02` **รันอยู่บน server บริษัท** · ยังไม่ตอบ: **(1) server OS อะไร (Windows Server/Linux/NAS OS)** · **(2) จะโฮสต์เว็บแอปที่ไหน (เครื่องนี้/server เดียวกับ NAS/ที่อื่น)**
@@ -115,7 +127,7 @@ webapp/
 
 ## Backlog (ยังไม่ได้ทำ — เลือกทำต่อได้)
 
-1. **Authentication** — ล็อกอิน + role · ปลดล็อก `changed_by` ใน log (ตอนนี้ audit trail เก็บแล้วแต่ไม่รู้ว่าใครทำ) + "งานของฉัน"
+1. **Authentication + requester portal** — 📄 **มีแผนเต็มแล้ว: `docs/แผน-auth-user-แผนกเพิ่มงานเอง.md`** · ล็อกอิน (user/pass) + 4 roles + ให้แผนกเพิ่มงานเอง/admin วางแผน · ปลดล็อก `changed_by` ใน log · เริ่ม Phase 3a
 2. **เปิดใช้ groundwork ฟีเจอร์ 5-7** (schema พร้อมแล้ว):
    - **Equipment** — หน้าจัดการเครื่อง + เลือกเครื่องตอนบันทึก test run + เตือนวันสอบเทียบ (calibration_due)
    - **Test method library** — หน้าคลัง method + เลือกใส่ test_detail อัตโนมัติ
@@ -126,9 +138,10 @@ webapp/
 6. label แบบพิมพ์ลง A4 หลายดวง/แผ่น, favicon/logo, รูปถ่ายชิ้นงานแบบ gallery
 7. หน้า not-found คืน HTTP 404 จริง (ตอนนี้คืน 200 เพราะ loading.tsx stream)
 
-> ✅ ทำแล้วในเซสชันล่าสุด: โมเดล 2 ชั้น (rollup) + QR ระดับใบ, หน้า item แบบแท็บ, ชื่อการทดสอบ (testName),
+> ✅ ทำแล้ว: โมเดล 2 ชั้น (rollup) + QR ระดับใบ **+ QR ระดับ item**, หน้า item แบบแท็บ, ชื่อการทดสอบ (testName),
 > ตารางงานรายสัปดาห์ (`/schedule`), รายงาน+export CSV (`/reports`), หน้า LINE OA (`/settings/line`),
-> audit/location logs, แจ้งเตือน, analytics (คอขวด/CFD/aging), รวม repo + push GitHub
+> audit/location logs, แจ้งเตือน, analytics (คอขวด/CFD/aging), รวม repo + push GitHub,
+> **สไลด์นำเสนอผู้บริหาร (`docs/Dodoregis-นำเสนอผู้บริหาร.pptx`)**, **แผน auth Phase 3**
 
 ## Deployment / เข้าถึงจากมือถือ (มีเอกสารแผนแล้ว ยังไม่ได้ทำจริง)
 
