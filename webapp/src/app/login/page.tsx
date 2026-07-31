@@ -37,7 +37,7 @@ export default async function LoginPage({
           <span className="text-[11px] text-muted">เปิดดูงานจาก label ได้ทันที</span>
         </Link>
         <Link
-          href="/"
+          href="/requests"
           className="card p-4 flex flex-col items-center gap-1.5 text-center hover:bg-surface-soft transition-colors"
         >
           <span className="text-[26px] leading-none">📋</span>

@@ -13,8 +13,11 @@ const baseLinks = [
   { href: "/analytics", label: "วิเคราะห์" },
   { href: "/reports", label: "รายงาน" },
 ];
-// เมนูเฉพาะ admin (หน้า /master ถูก guard ไว้อยู่แล้ว — ซ่อนเมนูให้ UX ไม่งง)
-const adminLinks = [{ href: "/master", label: "ตั้งค่าระบบ" }];
+// เมนูเฉพาะ admin (หน้าเหล่านี้ถูก guard ไว้อยู่แล้ว — ซ่อนเมนูให้ UX ไม่งง)
+const adminLinks = [
+  { href: "/planning", label: "วางแผน" },
+  { href: "/master", label: "ตั้งค่าระบบ" },
+];
 
 export default function NavBar({
   unreadCount = 0,

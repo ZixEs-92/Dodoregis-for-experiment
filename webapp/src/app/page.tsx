@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import {
   ALL_STATUSES,
@@ -16,8 +17,10 @@ import { Prisma } from "@/generated/prisma/client";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  // requester เห็นเฉพาะงานของแผนกตัวเอง
+  // หน้าต่างแรกของแอปคือหน้า login (ประตูทางเข้า) — ยังไม่ล็อกอินให้ไปที่นั่นก่อน
+  // (หน้าดูงานอื่น ๆ เช่น /items /requests ยังเปิดให้ดูได้โดยไม่ล็อกอิน สำหรับสแกน QR)
   const user = await getCurrentUser();
+  if (!user) redirect("/login");
   const deptScoped = user?.role === "REQUESTER" && user.departmentId != null;
   const where: Prisma.TestItemWhereInput = deptScoped
     ? { request: { requestDeptId: user!.departmentId! } }
@@ -71,6 +74,8 @@ export default async function DashboardPage() {
   const active = items.filter(
     (i) => i.status !== "S8_CLOSED" && i.status !== "S10_CANCEL"
   );
+  // งานรอวางแผน (ยังไม่มอบหมาย) — โชว์แบนเนอร์ให้ admin
+  const unassignedCount = active.filter((i) => !i.ownerId).length;
   const workload = new Map<string, number>();
   for (const i of active) {
     const names = new Set<string>();
@@ -116,6 +121,19 @@ export default async function DashboardPage() {
           <Link href="/analytics" className="btn-secondary btn-sm">วิเคราะห์ / KPI →</Link>
         </div>
       </div>
+
+      {user.role === "ADMIN" && unassignedCount > 0 && (
+        <Link
+          href="/planning"
+          className="card p-4 flex flex-wrap items-center gap-3 border-mustard bg-yellow-soft hover:opacity-90 transition-opacity"
+        >
+          <span className="text-[20px] leading-none">⏳</span>
+          <span className="text-[14px] font-medium text-ink">
+            มีงานรอวางแผน {unassignedCount} รายการ — มอบหมายผู้รับผิดชอบ + ลงวันที่
+          </span>
+          <span className="ml-auto text-[13px] text-link">ไปที่คิววางแผน →</span>
+        </Link>
+      )}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <SummaryCard label="งานทั้งหมด (item)" value={total} sub="ทุกสถานะ" className="bg-surface-dark text-white" href="/requests" />

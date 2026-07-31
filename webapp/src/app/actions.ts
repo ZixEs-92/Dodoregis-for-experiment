@@ -384,6 +384,15 @@ export async function changeItemStatus(itemCode: string, target: RequestStatus) 
     include: { reports: { orderBy: { id: "desc" } } },
   });
 
+  // งานที่ยังไม่มอบหมายผู้รับผิดชอบ ห้ามเดินหน้าเกินสถานะ 2 (ยกเว้น Hold/Cancel)
+  const UNASSIGNED_OK: RequestStatus[] = ["S1_RECEIVED", "S2_WAIT_PART", "S9_HOLD", "S10_CANCEL"];
+  if (!item.ownerId && !UNASSIGNED_OK.includes(target)) {
+    return {
+      ok: false as const,
+      errors: ["item นี้ยังไม่มอบหมายผู้รับผิดชอบ — ให้ admin วางแผน (มอบหมาย + ลงวันที่) ก่อนเริ่มงาน"],
+    };
+  }
+
   const errors = validateStatusRequirements(target, item);
   if (errors.length > 0) {
     return { ok: false as const, errors };
@@ -437,6 +446,69 @@ export async function changeItemStatus(itemCode: string, target: RequestStatus) 
   revalidatePath("/requests");
   revalidatePath("/");
   return { ok: true as const, errors: [] as string[] };
+}
+
+// ── วางแผนงาน (Phase 3d — admin มอบหมายผู้รับผิดชอบ + ลงวันที่ plan) ──
+
+export async function planItem(
+  itemCode: string,
+  _prev: ActionResult,
+  formData: FormData
+): Promise<ActionResult> {
+  const denied = await ensurePlanManage();
+  if (denied) return { ok: false, errors: [denied] };
+  const planner = (await getCurrentUser())!;
+
+  const ownerId = num(formData, "owner");
+  const planStart = date(formData, "plan_start");
+  const planEnd = date(formData, "plan_end");
+
+  const errors: string[] = [];
+  if (!ownerId) errors.push("กรุณาเลือกผู้รับผิดชอบ");
+  if (planStart && planEnd && planStart.getTime() > planEnd.getTime()) {
+    errors.push("Plan เริ่มต้องไม่เกิน Plan จบ");
+  }
+  if (errors.length > 0) return { ok: false, errors };
+
+  const item = await prisma.testItem.findUniqueOrThrow({
+    where: { itemCode },
+    include: { owner: true },
+  });
+  const newOwner = await prisma.member.findUnique({ where: { id: ownerId! } });
+  if (!newOwner) return { ok: false, errors: ["ไม่พบผู้รับผิดชอบที่เลือก"] };
+
+  await prisma.testItem.update({
+    where: { itemCode },
+    data: {
+      ownerId: ownerId!,
+      ...(planStart ? { planStart } : {}),
+      ...(planEnd ? { planEnd } : {}),
+    },
+  });
+
+  // audit trail: ลง log ว่าวางแผนโดยใคร (สถานะเดิม ไม่เปลี่ยน)
+  const planParts = [
+    `มอบหมาย ${newOwner.name}`,
+    planStart || planEnd
+      ? `แผน ${planStart ? planStart.toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok" }) : "?"} – ${planEnd ? planEnd.toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok" }) : "?"}`
+      : null,
+  ].filter(Boolean);
+  await prisma.statusLog.create({
+    data: {
+      itemId: item.id,
+      fromStatus: item.status,
+      toStatus: item.status,
+      note: `วางแผน: ${planParts.join(" · ")}`,
+      changedBy: planner.displayName,
+    },
+  });
+
+  revalidatePath("/planning");
+  revalidatePath(`/items/${itemCode}`);
+  revalidatePath(`/requests/${item.regisNo}`);
+  revalidatePath("/requests");
+  revalidatePath("/");
+  return { ok: true, errors: [], saved: true };
 }
 
 // ── test runs ───────────────────────────────────────────────
