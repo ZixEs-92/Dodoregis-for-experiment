@@ -14,7 +14,7 @@
   - เริ่มรัน: `cd webapp && npm run dev` · คู่มือ/โครงสร้าง: `docs/โครงสร้างโปรเจค-webapp.md` · README: `webapp/README.md`
   - **GitHub (repo เดียวทั้งโปรเจค):** https://github.com/ZixEs-92/Dodoregis-for-experiment (branch main) · `.env`/`dev.db`/`uploads/` ไม่ขึ้น git
   - สไลด์นำเสนอผู้บริหาร: `docs/Dodoregis-นำเสนอผู้บริหาร.pptx`
-- **Phase 3 (auth) — 3a+3b+3e+3c ทำแล้ว:** login/session + role guards ฝั่ง server ทุก action + ซ่อน UI ตาม role (viewer ดูอย่างเดียว ไม่ต้องล็อกอิน) · จัดการผู้ใช้ผ่านหน้า `/settings/users` (admin) · requester portal (ownerId nullable, แผนกล็อกฝั่ง server, เห็นเฉพาะแผนกตัวเอง, "ยังไม่มอบหมาย" ทุกหน้า) · หน้า login = ประตูทางเข้า (สแกน QR/เข้าดูไม่ล็อกอิน) · **เหลือ 3d (คิวรอ admin วางแผน)** → `docs/แผน-auth-user-แผนกเพิ่มงานเอง.md`
+- **Phase 3 (auth + requester portal) — ✅ เสร็จครบ:** login/session + role guards ฝั่ง server ทุก action + ซ่อน UI ตาม role · จัดการผู้ใช้ `/settings/users` (admin) · requester portal (ownerId nullable, แผนกล็อกฝั่ง server, เห็นเฉพาะแผนกตัวเอง) · คิวรอวางแผน `/planning` (admin มอบหมาย + ลงวันที่ · item ไม่มีเจ้าของเดินหน้าเกินสถานะ 2 ไม่ได้) · **หน้าแรก = หน้า login** (ประตูทางเข้า: สแกน QR/ดูรายการงานได้ไม่ต้องล็อกอิน) → อ้างอิง `docs/แผน-auth-user-แผนกเพิ่มงานเอง.md`
 - ขั้นถัดไปอื่น (backlog): เปิด groundwork equipment/test method, ตั้ง cron แจ้งเตือนจริง, deploy/เข้าถึงมือถือ (ดูเอกสารแผนใน `docs/`) — รวมทั้งหมดใน `docs/โครงสร้างโปรเจค-webapp.md`
 
 ## Data Model (สรุป — ฉบับเต็มดู docs/data-model.md)

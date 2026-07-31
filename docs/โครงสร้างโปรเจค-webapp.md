@@ -38,9 +38,12 @@
 - ✅ **3c requester portal** — `TestItem.ownerId` เป็น nullable + `TestRequest.createdById` (migration `nullable_owner_created_by`) · ทุกจุดแสดง "ยังไม่มอบหมาย" (dashboard/รายการ/ใบ/item/ตารางงาน "⏳ ยังไม่มอบหมาย"/analytics/report/แจ้งเตือน) · requester: แผนกถูกล็อกฝั่ง server, ไม่เห็นช่อง owner/plan (admin วางแผนให้), หน้า `/` + `/requests` เห็นเฉพาะแผนกตัวเอง · `changedBy` ใน log เติมจาก session แล้ว
 - ✅ **UX**: หน้า login เป็นประตูทางเข้า (การ์ดสแกน QR + เข้าดูไม่ล็อกอิน อยู่เหนือฟอร์ม), NavBar มีปุ่ม 📷 สแกน, เมนู "ตั้งค่าระบบ" เห็นเฉพาะ admin, login รองรับ `?next=` พากลับหน้าเดิม
 
-**งานหลักถัดไป: Phase 3d — คิวรอ admin วางแผน**
-- หน้า list งานสถานะ 1 ที่ `ownerId = null` → admin กดมอบหมาย owner + ลงวันที่ plan (+ เลือก test method)
-- พิจารณากติกา: item ที่ยังไม่มีเจ้าของไม่ควรขยับเกินสถานะ 1–2 จนกว่าจะมอบหมาย
+- ✅ **3d คิวรอวางแผน `/planning`** (admin) — list งานที่ยังไม่มอบหมาย (ใบเก่าสุดก่อน), ฟอร์ม inline มอบหมาย owner (โชว์คิวงานเปิดของแต่ละคน) + ลงวันที่ plan → `planItem` action + ลง audit log · กติกาใหม่: item ที่ยังไม่มอบหมายเปลี่ยนสถานะได้แค่ 1–2/Hold/Cancel · เมนู "วางแผน" ใน NavBar + แบนเนอร์ ⏳ บนแดชบอร์ด (admin)
+- ✅ **หน้าแรก = login**: เข้า `/` โดยไม่ล็อกอิน → เด้งไปหน้า login (ประตูทางเข้า: สแกน QR / ดูรายการงาน / ล็อกอิน) · หน้าดูงานอื่น (items/requests/scan/labels) ยังเปิดให้ดูโดยไม่ล็อกอินสำหรับ QR flow
+
+**🎉 Phase 3 (auth + requester portal) ครบทุก sub-phase แล้ว (3a/3b/3c/3d/3e)**
+
+**งานถัดไป (เลือกได้):** deploy จริง (Cloudflare Tunnel + โดเมน — มีคู่มือ pptx แล้ว), เปิด groundwork equipment/test method, cron แจ้งเตือน, requester แก้งานตัวเองก่อนถูกมอบหมาย
 - หมายเหตุ: Next streaming `redirect()` ส่ง client-side meta-refresh (200 ไม่ใช่ 307) — เทสด้วย curl จะไม่เห็นการ redirect ต้องเปิด browser จริง · React แทรก `<!-- -->` ระหว่างตัวแปรใน SSR HTML — grep ข้อความจากหน้าเว็บต้อง match แบบหลวม
 
 **เรื่องที่ค้าง (2): ทำให้ "ที่เก็บ raw data" กดเปิดโฟลเดอร์ได้จริง**
