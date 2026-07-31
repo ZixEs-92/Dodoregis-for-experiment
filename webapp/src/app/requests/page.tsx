@@ -4,6 +4,7 @@ import { ALL_STATUSES, STATUS_LABEL, isOverdue, isDueSoon, isUrgent } from "@/li
 import { testTitle } from "@/lib/format";
 import GroupedRequests, { ItemRow } from "@/components/GroupedRequests";
 import { Prisma, RequestStatus } from "@/generated/prisma/client";
+import { getCurrentUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -30,10 +31,15 @@ export default async function RequestsPage({
     prisma.member.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
   ]);
 
+  // requester ถูกจำกัดให้เห็นเฉพาะงานแผนกตัวเอง (ทับตัวกรอง dept จาก URL)
+  const user = await getCurrentUser();
+  const deptScoped = user?.role === "REQUESTER" && user.departmentId != null;
+
   const where: Prisma.TestItemWhereInput = {};
   if (sp.status) where.status = sp.status as RequestStatus;
   if (sp.owner) where.ownerId = Number(sp.owner);
   if (sp.dept) where.request = { requestDeptId: Number(sp.dept) };
+  if (deptScoped) where.request = { requestDeptId: user!.departmentId! };
   if (sp.q) {
     where.OR = [
       { itemCode: { contains: sp.q } },
@@ -60,7 +66,7 @@ export default async function RequestsPage({
     partNo: it.partNo,
     testTitle: testTitle(it.testName, it.testDetail),
     status: it.status,
-    ownerName: it.owner.name,
+    ownerName: it.owner?.name ?? "ยังไม่มอบหมาย",
     planEnd: it.planEnd ? it.planEnd.toISOString() : null,
     remark: it.remark,
     overdue: isOverdue(it.planEnd, it.status),
@@ -78,6 +84,7 @@ export default async function RequestsPage({
         <h1 className="text-[22px] font-medium text-ink sm:text-[26px]">รายการงานทดสอบ</h1>
         <p className="text-[14px] text-muted mt-0.5">
           จัดกลุ่มตามใบรีเควส · แสดงสถานะแยกแต่ละ item
+          {deptScoped && <span className="text-info"> · เฉพาะแผนก {user!.department!.name}</span>}
         </p>
       </div>
 

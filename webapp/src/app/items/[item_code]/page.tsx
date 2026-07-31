@@ -144,7 +144,10 @@ export default async function ItemDetailPage({
       <section className="card p-5 sm:p-6">
         <SectionTitle>ข้อมูลสำคัญ</SectionTitle>
         <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-[14px] mt-4 sm:grid-cols-2">
-          <Info label="ผู้รับผิดชอบ" value={item.owner.name} />
+          <Info
+            label="ผู้รับผิดชอบ"
+            value={item.owner?.name ?? <span className="text-mustard-deep font-medium">ยังไม่มอบหมาย (รอวางแผน)</span>}
+          />
           <Info label="จำนวนพาร์ท" value={item.qty != null ? String(item.qty) : "—"} />
           <Info label="Plan เริ่ม – จบ" value={`${toDisplayDate(item.planStart)} – ${toDisplayDate(item.planEnd)}`} />
           <Info label="จริง เริ่ม – จบ" value={`${toDisplayDate(item.actualStart)} – ${toDisplayDate(item.actualEnd)}`} />
@@ -398,9 +401,9 @@ export default async function ItemDetailPage({
           </p>
           <div className="flex items-center gap-2 text-[13px] text-muted">
             <span className="grid place-items-center w-6 h-6 rounded-full bg-surface-strong text-ink text-[11px] font-medium shrink-0">
-              {item.owner.name.slice(0, 1)}
+              {(item.owner?.name ?? "?").slice(0, 1)}
             </span>
-            {item.owner.name} · {item.request.requestDept.name} · ผู้รีเควส {item.request.requester}
+            {item.owner?.name ?? "ยังไม่มอบหมาย"} · {item.request.requestDept.name} · ผู้รีเควส {item.request.requester}
           </div>
         </div>
 

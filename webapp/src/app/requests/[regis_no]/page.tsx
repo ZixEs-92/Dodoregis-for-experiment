@@ -149,9 +149,9 @@ export default async function RequestOverviewPage({
                   <div className="flex items-center justify-between text-[12px]">
                     <span className="flex items-center gap-1.5 text-muted">
                       <span className="grid place-items-center w-5 h-5 rounded-full bg-surface-strong text-ink text-[10px] font-medium">
-                        {it.owner.name.slice(0, 1)}
+                        {(it.owner?.name ?? "?").slice(0, 1)}
                       </span>
-                      {it.owner.name}
+                      {it.owner?.name ?? "ยังไม่มอบหมาย"}
                     </span>
                     <span className={overdue ? "text-coral font-medium" : "text-muted"}>
                       กำหนดจบ {toDisplayDate(it.planEnd)}
@@ -169,6 +169,7 @@ export default async function RequestOverviewPage({
             action={addItemBound}
             members={members.map((m) => ({ id: m.id, name: m.name }))}
             nextItemNo={nextItemNo}
+            showPlanning={canEdit}
           />
         )}
       </section>

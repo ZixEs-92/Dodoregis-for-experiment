@@ -65,7 +65,7 @@ export async function getAllReportItems(): Promise<NormItem[]> {
       requestDate: it.request.requestDate,
       bkkYear: y,
       bkkMonth: m,
-      owner: it.owner.name,
+      owner: it.owner?.name ?? "ยังไม่มอบหมาย",
       status: it.status,
       planStart: it.planStart,
       planEnd: it.planEnd,

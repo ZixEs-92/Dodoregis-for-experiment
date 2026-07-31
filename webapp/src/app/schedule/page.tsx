@@ -83,10 +83,12 @@ export default async function SchedulePage({
       noPlan,
     };
 
-    let p = personMap.get(it.ownerId);
+    // item ที่ยังไม่มอบหมาย รวมไว้ในแถว "ยังไม่มอบหมาย" (id 0)
+    const key = it.ownerId ?? 0;
+    let p = personMap.get(key);
     if (!p) {
-      p = { ownerId: it.ownerId, name: it.owner.name, items: [], weekCount: 0, todayCount: 0, overdueCount: 0 };
-      personMap.set(it.ownerId, p);
+      p = { ownerId: key, name: it.owner?.name ?? "⏳ ยังไม่มอบหมาย", items: [], weekCount: 0, todayCount: 0, overdueCount: 0 };
+      personMap.set(key, p);
     }
     p.items.push(schedItem);
     if (dayIndices.length > 0) p.weekCount++;

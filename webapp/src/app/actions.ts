@@ -18,6 +18,7 @@ import {
   ensureEditTests,
   ensurePlanManage,
 } from "@/lib/guard";
+import { getCurrentUser } from "@/lib/auth";
 import {
   RequestStatus,
   RunResult,
@@ -91,7 +92,7 @@ function validateItemFields(fd: FormData): string[] {
   const errors: string[] = [];
   if (!str(fd, "part_name")) errors.push("กรุณากรอกชื่อชิ้นงาน/รุ่น Lamp");
   if (!str(fd, "test_detail")) errors.push("กรุณากรอกรายละเอียดเทส/มาตรฐานอ้างอิง");
-  if (!num(fd, "owner")) errors.push("กรุณาเลือกผู้รับผิดชอบหลัก");
+  // หมายเหตุ: ผู้รับผิดชอบไม่บังคับแล้ว (Phase 3c) — งานที่ยังไม่มอบหมายจะเข้าคิวรอ admin วางแผน
   return errors;
 }
 
@@ -108,7 +109,7 @@ function itemDataFromForm(fd: FormData) {
     planEnd: date(fd, "plan_end"),
     actualStart: date(fd, "actual_start"),
     actualEnd: date(fd, "actual_end"),
-    ownerId: num(fd, "owner")!,
+    ownerId: num(fd, "owner"), // nullable — ยังไม่มอบหมายได้ (Phase 3c)
     finishedPartLocationId: num(fd, "finished_part_location"),
     rawDataLocation: str(fd, "raw_data_location"),
     remark: str(fd, "remark"),
@@ -123,14 +124,25 @@ export async function createRequestWithItem(
 ): Promise<ActionResult> {
   const denied = await ensureCreateRequest();
   if (denied) return { ok: false, errors: [denied] };
+  const user = (await getCurrentUser())!;
+
+  // requester ถูกล็อกให้ลงงานของแผนกตัวเองเสมอ (บังคับฝั่ง server ไม่เชื่อค่าจากฟอร์ม)
+  const isRequester = user.role === "REQUESTER";
+  if (isRequester && !user.departmentId) {
+    return { ok: false, errors: ["บัญชีของคุณยังไม่ผูกกับแผนก — แจ้งผู้ดูแลระบบให้ตั้งค่าก่อน"] };
+  }
+  const deptId = isRequester ? user.departmentId! : num(formData, "request_dept");
+
   const errors: string[] = [];
-  if (!num(formData, "request_dept")) errors.push("กรุณาเลือกแผนกที่รีเควส");
+  if (!deptId) errors.push("กรุณาเลือกแผนกที่รีเควส");
   if (!str(formData, "requester")) errors.push("กรุณากรอกผู้รีเควส");
   if (!date(formData, "request_date")) errors.push("กรุณากรอกวันที่ได้ใบรีเควส");
   errors.push(...validateItemFields(formData));
   if (errors.length > 0) return { ok: false, errors };
 
   const requestDate = date(formData, "request_date")!;
+  const itemData = itemDataFromForm(formData);
+  const createNote = itemData.ownerId ? "สร้าง item" : "สร้าง item (รอวางแผน/มอบหมาย)";
 
   let createdRegisNo: string | null = null;
   for (let attempt = 0; attempt < 4 && !createdRegisNo; attempt++) {
@@ -140,17 +152,18 @@ export async function createRequestWithItem(
         data: {
           regisNo,
           seq,
-          requestDeptId: num(formData, "request_dept")!,
+          requestDeptId: deptId!,
           requester: str(formData, "requester")!,
           requestDate,
           remark: str(formData, "request_remark"),
+          createdById: user.id,
           items: {
             create: {
               itemNo: 1,
               itemCode: buildItemCode(regisNo, 1),
-              ...itemDataFromForm(formData),
+              ...itemData,
               statusLogs: {
-                create: { toStatus: "S1_RECEIVED", note: "สร้าง item" },
+                create: { toStatus: "S1_RECEIVED", note: createNote, changedBy: user.displayName },
               },
             },
           },
@@ -176,8 +189,20 @@ export async function addItem(
 ): Promise<ActionResult> {
   const denied = await ensureCreateRequest();
   if (denied) return { ok: false, errors: [denied] };
+  const user = (await getCurrentUser())!;
+
+  // requester เพิ่ม item ได้เฉพาะใบของแผนกตัวเอง
+  if (user.role === "REQUESTER") {
+    const req = await prisma.testRequest.findUnique({ where: { regisNo } });
+    if (!req || req.requestDeptId !== user.departmentId) {
+      return { ok: false, errors: ["เพิ่มรายการได้เฉพาะใบรีเควสของแผนกตัวเอง"] };
+    }
+  }
+
   const errors = validateItemFields(formData);
   if (errors.length > 0) return { ok: false, errors };
+  const itemData = itemDataFromForm(formData);
+  const createNote = itemData.ownerId ? "สร้าง item" : "สร้าง item (รอวางแผน/มอบหมาย)";
 
   for (let attempt = 0; attempt < 4; attempt++) {
     const itemNo = await nextItemNo(regisNo);
@@ -187,9 +212,9 @@ export async function addItem(
           regisNo,
           itemNo,
           itemCode: buildItemCode(regisNo, itemNo),
-          ...itemDataFromForm(formData),
+          ...itemData,
           statusLogs: {
-            create: { toStatus: "S1_RECEIVED", note: "สร้าง item" },
+            create: { toStatus: "S1_RECEIVED", note: createNote, changedBy: user.displayName },
           },
         },
       });
@@ -267,10 +292,16 @@ export async function updateItemDetails(
     });
   }
 
+  const editor = await getCurrentUser();
   await prisma.testItem.update({ where: { itemCode }, data });
   if (locLogs.length > 0) {
     await prisma.locationLog.createMany({
-      data: locLogs.map((l) => ({ itemId: current.id, note: "แก้ผ่านฟอร์มข้อมูล item", ...l })),
+      data: locLogs.map((l) => ({
+        itemId: current.id,
+        note: "แก้ผ่านฟอร์มข้อมูล item",
+        changedBy: editor?.displayName ?? null,
+        ...l,
+      })),
     });
   }
 
@@ -290,6 +321,7 @@ export async function moveLocation(
 ): Promise<ActionResult> {
   const denied = await ensureEditTests();
   if (denied) return { ok: false, errors: [denied] };
+  const mover = await getCurrentUser();
   const kind = str(formData, "kind"); // PART_LOCATION | FINISHED_LOCATION
   const locationId = num(formData, "location");
   const note = str(formData, "note");
@@ -316,6 +348,7 @@ export async function moveLocation(
         fromName: current.partLocation?.name ?? null,
         toName,
         note,
+        changedBy: mover?.displayName ?? null,
       },
     });
   } else {
@@ -331,6 +364,7 @@ export async function moveLocation(
         fromName: current.finishedPartLocation?.name ?? null,
         toName,
         note,
+        changedBy: mover?.displayName ?? null,
       },
     });
   }
@@ -386,8 +420,14 @@ export async function changeItemStatus(itemCode: string, target: RequestStatus) 
 
   // audit trail + แจ้งเตือน: บันทึกทุกครั้งที่สถานะเปลี่ยนจริง
   if (item.status !== target) {
+    const editor = await getCurrentUser();
     await prisma.statusLog.create({
-      data: { itemId: item.id, fromStatus: item.status, toStatus: target },
+      data: {
+        itemId: item.id,
+        fromStatus: item.status,
+        toStatus: target,
+        changedBy: editor?.displayName ?? null,
+      },
     });
     await notifyStatusChange(item.id, item.itemCode, item.partName, target);
   }

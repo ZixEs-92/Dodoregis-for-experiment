@@ -12,10 +12,13 @@ export default function AddItemForm({
   action,
   members,
   nextItemNo,
+  showPlanning = true,
 }: {
   action: (prev: ActionResult, formData: FormData) => Promise<ActionResult>;
   members: Option[];
   nextItemNo: number;
+  /** requester ไม่เห็นส่วนวางแผน (owner/plan) — admin ลงให้ทีหลัง */
+  showPlanning?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, initial);
 
@@ -43,20 +46,24 @@ export default function AddItemForm({
         <Field label="รายละเอียดเทส / มาตรฐานอ้างอิง" required className="sm:col-span-2">
           <textarea name="test_detail" required rows={3} className="input" />
         </Field>
-        <Field label="Plan เริ่มเทส">
-          <input type="date" name="plan_start" className="input" />
-        </Field>
-        <Field label="Plan จบ">
-          <input type="date" name="plan_end" className="input" />
-        </Field>
-        <Field label="ผู้รับผิดชอบหลัก" required className="sm:col-span-2">
-          <select name="owner" required className="input">
-            <option value="">เลือกผู้รับผิดชอบ</option>
-            {members.map((m) => (
-              <option key={m.id} value={m.id}>{m.name}</option>
-            ))}
-          </select>
-        </Field>
+        {showPlanning && (
+          <>
+            <Field label="Plan เริ่มเทส">
+              <input type="date" name="plan_start" className="input" />
+            </Field>
+            <Field label="Plan จบ">
+              <input type="date" name="plan_end" className="input" />
+            </Field>
+            <Field label="ผู้รับผิดชอบหลัก" className="sm:col-span-2">
+              <select name="owner" defaultValue="" className="input">
+                <option value="">- ยังไม่มอบหมาย (วางแผนภายหลัง) -</option>
+                {members.map((m) => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+            </Field>
+          </>
+        )}
         <Field label="Remark ของ item" className="sm:col-span-2">
           <textarea name="remark" rows={2} placeholder='พิมพ์ "make รีพอร์ตเลย" หากเป็นงานด่วน' className="input" />
         </Field>

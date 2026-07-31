@@ -12,10 +12,16 @@ export default function NewRequestForm({
   departments,
   members,
   today,
+  lockedDept = null,
+  showPlanning = true,
 }: {
   departments: Option[];
   members: Option[];
   today: string;
+  /** โหมด requester: แผนกถูกล็อกเป็นแผนกของผู้ใช้ (server บังคับซ้ำอีกชั้น) */
+  lockedDept?: Option | null;
+  /** ซ่อนส่วนวางแผน (owner + plan วันที่) สำหรับ requester — admin เป็นคนลงให้ทีหลัง */
+  showPlanning?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(createRequestWithItem, initialState);
 
@@ -24,14 +30,21 @@ export default function NewRequestForm({
       <FormErrors errors={state.errors} />
 
       <FieldGroup title="ข้อมูลใบรีเควส">
-        <Field label="แผนกที่รีเควส" required>
-          <select name="request_dept" required className="input">
-            <option value="">เลือกแผนก</option>
-            {departments.map((d) => (
-              <option key={d.id} value={d.id}>{d.name}</option>
-            ))}
-          </select>
-        </Field>
+        {lockedDept ? (
+          <Field label="แผนกที่รีเควส">
+            <div className="input flex items-center bg-surface-soft text-ink">{lockedDept.name}</div>
+            <span className="text-[11px] text-muted">ล็อกตามแผนกของบัญชีคุณ</span>
+          </Field>
+        ) : (
+          <Field label="แผนกที่รีเควส" required>
+            <select name="request_dept" required className="input">
+              <option value="">เลือกแผนก</option>
+              {departments.map((d) => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </select>
+          </Field>
+        )}
         <Field label="ผู้รีเควส (ชื่อ + ช่องทางติดต่อ)" required>
           <input type="text" name="requester" required className="input" />
         </Field>
@@ -67,25 +80,36 @@ export default function NewRequestForm({
           </Field>
         </FieldGroup>
 
-        <FieldGroup title="แผนงานของ item นี้" nested>
-          <Field label="Plan เริ่มเทส">
-            <input type="date" name="plan_start" className="input" />
-          </Field>
-          <Field label="Plan จบ">
-            <input type="date" name="plan_end" className="input" />
-          </Field>
-          <Field label="ผู้รับผิดชอบหลัก" required className="sm:col-span-2">
-            <select name="owner" required className="input">
-              <option value="">เลือกผู้รับผิดชอบ</option>
-              {members.map((m) => (
-                <option key={m.id} value={m.id}>{m.name}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Remark ของ item" className="sm:col-span-2">
-            <textarea name="remark" rows={2} placeholder='พิมพ์ "make รีพอร์ตเลย" หากเป็นงานด่วน' className="input" />
-          </Field>
-        </FieldGroup>
+        {showPlanning ? (
+          <FieldGroup title="แผนงานของ item นี้" nested>
+            <Field label="Plan เริ่มเทส">
+              <input type="date" name="plan_start" className="input" />
+            </Field>
+            <Field label="Plan จบ">
+              <input type="date" name="plan_end" className="input" />
+            </Field>
+            <Field label="ผู้รับผิดชอบหลัก" className="sm:col-span-2">
+              <select name="owner" defaultValue="" className="input">
+                <option value="">- ยังไม่มอบหมาย (วางแผนภายหลัง) -</option>
+                {members.map((m) => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Remark ของ item" className="sm:col-span-2">
+              <textarea name="remark" rows={2} placeholder='พิมพ์ "make รีพอร์ตเลย" หากเป็นงานด่วน' className="input" />
+            </Field>
+          </FieldGroup>
+        ) : (
+          <FieldGroup title="เพิ่มเติม" nested>
+            <Field label="Remark ของ item" className="sm:col-span-2">
+              <textarea name="remark" rows={2} placeholder='พิมพ์ "make รีพอร์ตเลย" หากเป็นงานด่วน' className="input" />
+            </Field>
+            <p className="text-[12px] text-muted sm:col-span-2">
+              📌 ผู้รับผิดชอบ + วันที่แผนทดสอบ ทีมแลป/admin จะเป็นคนวางแผนให้หลังรับงาน
+            </p>
+          </FieldGroup>
+        )}
       </div>
 
       <div className="flex gap-3">

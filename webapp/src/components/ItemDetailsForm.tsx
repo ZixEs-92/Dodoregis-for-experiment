@@ -18,7 +18,7 @@ export type ItemDefaults = {
   planEnd: string;
   actualStart: string;
   actualEnd: string;
-  ownerId: number;
+  ownerId: number | null;
   finishedPartLocationId: number | null;
   rawDataLocation: string;
   remark: string;
@@ -59,8 +59,9 @@ export default function ItemDetailsForm({
         <Field label="จำนวนพาร์ท">
           <input type="number" name="qty" defaultValue={defaults.qty ?? ""} className="input" />
         </Field>
-        <Field label="ผู้รับผิดชอบหลัก" required>
-          <select name="owner" defaultValue={defaults.ownerId} required className="input">
+        <Field label="ผู้รับผิดชอบหลัก">
+          <select name="owner" defaultValue={defaults.ownerId ?? ""} className="input">
+            <option value="">- ยังไม่มอบหมาย -</option>
             {members.map((m) => (<option key={m.id} value={m.id}>{m.name}</option>))}
           </select>
         </Field>

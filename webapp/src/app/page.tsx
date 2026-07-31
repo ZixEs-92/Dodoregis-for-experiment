@@ -10,18 +10,30 @@ import {
 } from "@/lib/workflow";
 import LoadingBoard, { LoadItem } from "@/components/LoadingBoard";
 import { requestRollup, RequestPhase } from "@/lib/rollup";
+import { getCurrentUser } from "@/lib/auth";
+import { Prisma } from "@/generated/prisma/client";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
+  // requester เห็นเฉพาะงานของแผนกตัวเอง
+  const user = await getCurrentUser();
+  const deptScoped = user?.role === "REQUESTER" && user.departmentId != null;
+  const where: Prisma.TestItemWhereInput = deptScoped
+    ? { request: { requestDeptId: user!.departmentId! } }
+    : {};
+
   const items = await prisma.testItem.findMany({
+    where,
     include: {
       owner: true,
       testRuns: { include: { loadingOwner: true } },
       reports: true,
     },
   });
-  const requestCount = await prisma.testRequest.count();
+  const requestCount = await prisma.testRequest.count({
+    where: deptScoped ? { requestDeptId: user!.departmentId! } : {},
+  });
 
   const total = items.length;
   const overdue = items.filter((i) => isOverdue(i.planEnd, i.status));
@@ -62,7 +74,7 @@ export default async function DashboardPage() {
   const workload = new Map<string, number>();
   for (const i of active) {
     const names = new Set<string>();
-    names.add(i.owner.name);
+    names.add(i.owner?.name ?? "ยังไม่มอบหมาย");
     for (const run of i.testRuns) if (run.loadingOwner) names.add(run.loadingOwner.name);
     for (const name of names) workload.set(name, (workload.get(name) ?? 0) + 1);
   }
@@ -82,7 +94,7 @@ export default async function DashboardPage() {
     itemCode: i.itemCode,
     partName: i.partName,
     status: i.status,
-    ownerName: i.owner.name,
+    ownerName: i.owner?.name ?? "ยังไม่มอบหมาย",
     planStart: i.planStart ? i.planStart.toISOString() : null,
     planEnd: i.planEnd ? i.planEnd.toISOString() : null,
     overdue: isOverdue(i.planEnd, i.status),
@@ -96,6 +108,7 @@ export default async function DashboardPage() {
           <h1 className="text-[22px] font-medium text-ink sm:text-[26px]">แดชบอร์ด</h1>
           <p className="text-[14px] text-muted mt-0.5">
             ภาพรวมงานทดสอบ (นับเป็นราย item) · {requestCount} ใบรีเควส
+            {deptScoped && <span className="text-info"> · เฉพาะแผนก {user!.department!.name}</span>}
           </p>
         </div>
         <div className="ml-auto flex gap-2">

@@ -116,6 +116,10 @@ model TestRequest {
   // groundwork: token สำหรับ requester portal (ดูสถานะแบบอ่านอย่างเดียว) — ยังไม่เปิดใช้
   publicToken String? @unique @map("public_token")
 
+  // ผู้ใช้ที่สร้างใบนี้ (requester portal — Phase 3c)
+  createdBy   User? @relation(fields: [createdById], references: [id])
+  createdById Int?  @map("created_by_id")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -153,8 +157,9 @@ model TestItem {
   status           RequestStatus  @default(S1_RECEIVED)
   statusBeforeHold RequestStatus? @map("status_before_hold")
 
-  owner   Member @relation("Owner", fields: [ownerId], references: [id])
-  ownerId Int    @map("owner_id")
+  // nullable: งานที่ requester สร้างยังไม่มีผู้รับผิดชอบ จนกว่า admin จะวางแผน (Phase 3c)
+  owner   Member? @relation("Owner", fields: [ownerId], references: [id])
+  ownerId Int?    @map("owner_id")
 
   finishedPartLocation   FinishedLocation? @relation("FinishedLocation", fields: [finishedPartLocationId], references: [id])
   finishedPartLocationId Int?              @map("finished_part_location_id")
@@ -372,6 +377,8 @@ model User {
   lastLoginAt DateTime? @map("last_login_at")
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  createdRequests TestRequest[] // ใบรีเควสที่ user นี้สร้าง
 
   @@map("users")
 }

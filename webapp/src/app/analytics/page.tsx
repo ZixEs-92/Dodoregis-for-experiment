@@ -141,7 +141,7 @@ export default async function AnalyticsPage({
       itemCode: i.itemCode,
       partName: i.partName,
       status: i.status,
-      ownerName: i.owner.name,
+      ownerName: i.owner?.name ?? "ยังไม่มอบหมาย",
       days: daysInCurrentStatus({ createdAt: i.createdAt, status: i.status, statusLogs: i.statusLogs }, now),
     }))
     .filter((x) => x.days > 7)
