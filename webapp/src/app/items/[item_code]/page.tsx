@@ -13,6 +13,8 @@ import {
 import { leadTime, slaStatus, SLA_STATUS_LABEL, SLA_STATUS_COLOR } from "@/lib/tat";
 import { requestRollup, PHASE_LABEL, PHASE_COLOR } from "@/lib/rollup";
 import { testTitle, isHttpUrl } from "@/lib/format";
+import { getCurrentUser } from "@/lib/auth";
+import { canEditTests } from "@/lib/roles";
 import CopyButton from "@/components/CopyButton";
 import StatusBadge from "@/components/StatusBadge";
 import StatusStepper from "@/components/StatusStepper";
@@ -86,6 +88,10 @@ export default async function ItemDetailPage({
   const lead = leadTime(item.request.requestDate, sentDate);
   const sla = slaStatus(lead.days, lead.done, slaDays);
 
+  // สิทธิ์: viewer (ไม่ล็อกอิน) เห็นอย่างเดียว, engineer ขึ้นไปแก้ได้
+  const currentUser = await getCurrentUser();
+  const canEdit = canEditTests(currentUser?.role ?? null);
+
   const updateBound = updateItemDetails.bind(null, item.itemCode);
   const createRun = addTestRun.bind(null, item.itemCode);
   const saveReport = upsertReport.bind(null, item.itemCode);
@@ -112,12 +118,14 @@ export default async function ItemDetailPage({
   // ── panels ──
   const overviewPanel = (
     <div className="flex flex-col gap-4">
+      {canEdit && (
       <section className="card p-5 sm:p-6">
         <SectionTitle>เปลี่ยนสถานะ</SectionTitle>
         <div className="mt-4">
           <StatusStepper itemCode={item.itemCode} currentStatus={item.status} statusBeforeHold={item.statusBeforeHold} />
         </div>
       </section>
+      )}
 
       <div className="card p-4 sm:p-5 flex flex-wrap items-center gap-x-6 gap-y-2">
         <div className="flex flex-col">
@@ -159,6 +167,9 @@ export default async function ItemDetailPage({
               )
             }
           />
+          <div className="sm:col-span-2">
+            <Info label="รายละเอียดเทส" value={<span className="whitespace-pre-wrap">{item.testDetail}</span>} />
+          </div>
           {item.remark && <Info label="หมายเหตุ" value={item.remark} />}
         </dl>
       </section>
@@ -235,6 +246,7 @@ export default async function ItemDetailPage({
         </table>
       </div>
 
+      {canEdit && (
       <details className="border border-hairline rounded-lg overflow-hidden">
         <summary className="cursor-pointer select-none px-4 py-3 text-[13px] font-medium bg-surface-soft text-ink">+ เพิ่ม Test Run (retest)</summary>
         <form action={createRun} className="p-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -265,12 +277,14 @@ export default async function ItemDetailPage({
           <div className="sm:col-span-2"><button type="submit" className="btn-primary btn-sm">บันทึก Test Run</button></div>
         </form>
       </details>
+      )}
     </section>
   );
 
   const reportPanel = (
     <section className="card p-5 sm:p-6">
       <SectionTitle>รีพอร์ท (ของ item นี้)</SectionTitle>
+      {canEdit ? (
       <form action={saveReport} className="grid grid-cols-1 gap-4 mt-4 sm:grid-cols-2">
         <Field label="สถานะรีพอร์ท">
           <select name="status" defaultValue={latestReport?.status ?? "NOT_STARTED"} className="input">
@@ -294,6 +308,27 @@ export default async function ItemDetailPage({
         </Field>
         <div className="sm:col-span-2"><button type="submit" className="btn-primary">บันทึกรีพอร์ท</button></div>
       </form>
+      ) : latestReport ? (
+        <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-[14px] mt-4 sm:grid-cols-2">
+          <Info label="สถานะรีพอร์ท" value={REPORT_STATUS_LABEL[latestReport.status]} />
+          <Info label="วันที่ส่ง" value={toDisplayDate(latestReport.sentDate)} />
+          <Info label="ที่อยู่ไฟล์" value={latestReport.filePath ?? "—"} />
+          <Info
+            label="ลิงก์รีพอร์ท"
+            value={
+              latestReport.reportUrl ? (
+                <a href={latestReport.reportUrl} target="_blank" rel="noopener noreferrer" className="text-link hover:underline break-all">
+                  {latestReport.reportUrl} ↗
+                </a>
+              ) : "—"
+            }
+          />
+          <Info label="ผู้จัดทำ" value={latestReport.author?.name ?? "—"} />
+          <Info label="ผู้อนุมัติ" value={latestReport.approver?.name ?? "—"} />
+        </dl>
+      ) : (
+        <p className="text-[13px] text-muted mt-4">ยังไม่มีข้อมูลรีพอร์ท</p>
+      )}
     </section>
   );
 
@@ -301,6 +336,7 @@ export default async function ItemDetailPage({
     <AttachmentsSection
       title="ไฟล์แนบของ item (รูปชิ้นงาน / สเปคทดสอบ)"
       uploadAction={uploadBound}
+      readOnly={!canEdit}
       attachments={item.attachments.map((a) => ({
         id: a.id, kind: a.kind, label: a.label, fileName: a.fileName,
         storedName: a.storedName, mimeType: a.mimeType, sizeBytes: a.sizeBytes, url: a.url,
@@ -310,6 +346,7 @@ export default async function ItemDetailPage({
 
   const historyPanel = (
     <div className="flex flex-col gap-4">
+      {canEdit && (
       <section className="card p-5 sm:p-6">
         <SectionTitle>ย้ายที่เก็บชิ้นงาน (chain of custody)</SectionTitle>
         <p className="text-[12px] text-muted mt-3 mb-3">บันทึกย้ายที่เก็บได้เร็ว ๆ ตรงนี้ ระบบเก็บประวัติทุกครั้งที่ย้าย</p>
@@ -321,6 +358,7 @@ export default async function ItemDetailPage({
           currentFinished={item.finishedPartLocation?.name ?? null}
         />
       </section>
+      )}
       <section className="card p-5 sm:p-6">
         <SectionTitle>ประวัติกิจกรรม (audit trail)</SectionTitle>
         <ActivityTimeline events={events} />
@@ -330,7 +368,7 @@ export default async function ItemDetailPage({
 
   const tabs: TabDef[] = [
     { id: "overview", label: "ภาพรวม", content: overviewPanel },
-    { id: "detail", label: "รายละเอียดเทส", content: detailPanel },
+    ...(canEdit ? [{ id: "detail", label: "รายละเอียดเทส", content: detailPanel }] : []),
     { id: "runs", label: "ความคืบหน้า", content: runsPanel, badge: item.testRuns.length },
     { id: "report", label: "รีพอร์ท", content: reportPanel },
     { id: "files", label: "ไฟล์แนบ", content: attachmentsPanel, badge: item.attachments.length },

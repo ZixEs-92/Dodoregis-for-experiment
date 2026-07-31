@@ -1,9 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import NewRequestForm from "@/components/NewRequestForm";
+import { guardPageCreate } from "@/lib/guard";
 
 export const metadata = { title: "ลงงานใหม่ — Dodoregis" };
 
 export default async function NewRequestPage() {
+  await guardPageCreate();
   const [departments, members] = await Promise.all([
     prisma.department.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
     prisma.member.findMany({ where: { active: true }, orderBy: { name: "asc" } }),

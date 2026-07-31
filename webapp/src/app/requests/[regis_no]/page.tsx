@@ -10,6 +10,8 @@ import StatusBadge from "@/components/StatusBadge";
 import AddItemForm from "@/components/AddItemForm";
 import AttachmentsSection from "@/components/AttachmentsSection";
 import { addItem, uploadAttachment } from "@/app/actions";
+import { getCurrentUser } from "@/lib/auth";
+import { canCreateRequest, canEditTests } from "@/lib/roles";
 
 export async function generateMetadata({
   params,
@@ -49,6 +51,10 @@ export default async function RequestOverviewPage({
   const nextItemNo = (request.items.at(-1)?.itemNo ?? 0) + 1;
   const addItemBound = addItem.bind(null, regisNo);
   const uploadBound = uploadAttachment.bind(null, { requestNo: regisNo });
+
+  const currentUser = await getCurrentUser();
+  const canCreate = canCreateRequest(currentUser?.role ?? null);
+  const canEdit = canEditTests(currentUser?.role ?? null);
 
   return (
     <div className="flex flex-col gap-5 pb-10">
@@ -158,16 +164,19 @@ export default async function RequestOverviewPage({
           </div>
         )}
 
-        <AddItemForm
-          action={addItemBound}
-          members={members.map((m) => ({ id: m.id, name: m.name }))}
-          nextItemNo={nextItemNo}
-        />
+        {canCreate && (
+          <AddItemForm
+            action={addItemBound}
+            members={members.map((m) => ({ id: m.id, name: m.name }))}
+            nextItemNo={nextItemNo}
+          />
+        )}
       </section>
 
       <AttachmentsSection
         title="ไฟล์แนบระดับใบรีเควส (email / ใบรีเควส / เอกสารรวม)"
         uploadAction={uploadBound}
+        readOnly={!canEdit}
         attachments={request.attachments.map((a) => ({
           id: a.id,
           kind: a.kind,

@@ -13,6 +13,12 @@ import {
   deleteStoredFile,
 } from "@/lib/uploads";
 import {
+  ensureUser,
+  ensureCreateRequest,
+  ensureEditTests,
+  ensurePlanManage,
+} from "@/lib/guard";
+import {
   RequestStatus,
   RunResult,
   ReportStatus,
@@ -115,6 +121,8 @@ export async function createRequestWithItem(
   _prev: ActionResult,
   formData: FormData
 ): Promise<ActionResult> {
+  const denied = await ensureCreateRequest();
+  if (denied) return { ok: false, errors: [denied] };
   const errors: string[] = [];
   if (!num(formData, "request_dept")) errors.push("กรุณาเลือกแผนกที่รีเควส");
   if (!str(formData, "requester")) errors.push("กรุณากรอกผู้รีเควส");
@@ -166,6 +174,8 @@ export async function addItem(
   _prev: ActionResult,
   formData: FormData
 ): Promise<ActionResult> {
+  const denied = await ensureCreateRequest();
+  if (denied) return { ok: false, errors: [denied] };
   const errors = validateItemFields(formData);
   if (errors.length > 0) return { ok: false, errors };
 
@@ -202,6 +212,8 @@ export async function updateItemDetails(
   _prev: ActionResult,
   formData: FormData
 ): Promise<ActionResult> {
+  const denied = await ensureEditTests();
+  if (denied) return { ok: false, errors: [denied] };
   const errors = validateItemFields(formData);
   if (errors.length > 0) return { ok: false, errors };
 
@@ -276,6 +288,8 @@ export async function moveLocation(
   _prev: ActionResult,
   formData: FormData
 ): Promise<ActionResult> {
+  const denied = await ensureEditTests();
+  if (denied) return { ok: false, errors: [denied] };
   const kind = str(formData, "kind"); // PART_LOCATION | FINISHED_LOCATION
   const locationId = num(formData, "location");
   const note = str(formData, "note");
@@ -329,6 +343,8 @@ export async function moveLocation(
 // ── เปลี่ยนสถานะ item ───────────────────────────────────────
 
 export async function changeItemStatus(itemCode: string, target: RequestStatus) {
+  const denied = await ensureEditTests();
+  if (denied) return { ok: false as const, errors: [denied] };
   const item = await prisma.testItem.findUniqueOrThrow({
     where: { itemCode },
     include: { reports: { orderBy: { id: "desc" } } },
@@ -386,6 +402,8 @@ export async function changeItemStatus(itemCode: string, target: RequestStatus) 
 // ── test runs ───────────────────────────────────────────────
 
 export async function addTestRun(itemCode: string, formData: FormData) {
+  const denied = await ensureEditTests();
+  if (denied) throw new Error(denied);
   const item = await prisma.testItem.findUniqueOrThrow({ where: { itemCode } });
   const last = await prisma.testRun.findFirst({
     where: { itemId: item.id },
@@ -417,6 +435,8 @@ export async function addTestRun(itemCode: string, formData: FormData) {
 // ── report ──────────────────────────────────────────────────
 
 export async function upsertReport(itemCode: string, formData: FormData) {
+  const denied = await ensureEditTests();
+  if (denied) throw new Error(denied);
   const item = await prisma.testItem.findUniqueOrThrow({ where: { itemCode } });
   const existing = await prisma.report.findFirst({
     where: { itemId: item.id },
@@ -468,6 +488,8 @@ export async function uploadAttachment(
   _prev: ActionResult,
   formData: FormData
 ): Promise<ActionResult> {
+  const denied = await ensureEditTests();
+  if (denied) return { ok: false, errors: [denied] };
   const kindRaw = str(formData, "kind");
   const kind: AttachmentKind =
     kindRaw && KIND_VALUES.includes(kindRaw)
@@ -513,6 +535,8 @@ export async function uploadAttachment(
 }
 
 export async function deleteAttachment(id: number) {
+  const denied = await ensureEditTests();
+  if (denied) throw new Error(denied);
   const att = await prisma.attachment.findUnique({ where: { id } });
   if (!att) return;
   if (att.storedName) await deleteStoredFile(att.storedName);
@@ -531,11 +555,15 @@ export async function deleteAttachment(id: number) {
 // ── แจ้งเตือน (mark read) ───────────────────────────────────
 
 export async function markNotificationRead(id: number) {
+  const denied = await ensureUser();
+  if (denied) throw new Error(denied);
   await prisma.notification.update({ where: { id }, data: { readAt: new Date() } });
   revalidatePath("/notifications");
 }
 
 export async function markAllNotificationsRead() {
+  const denied = await ensureUser();
+  if (denied) throw new Error(denied);
   await prisma.notification.updateMany({
     where: { readAt: null },
     data: { readAt: new Date() },
@@ -555,6 +583,8 @@ export async function sendLineTest(
   _prev: LineTestState,
   formData: FormData
 ): Promise<LineTestState> {
+  const denied = await ensurePlanManage();
+  if (denied) return { ran: false, result: null, errors: [denied] };
   const message = str(formData, "message") ?? "🔔 ทดสอบแจ้งเตือนจาก Dodoregis";
   const token = str(formData, "token") ?? undefined; // override ชั่วคราว (ไม่บันทึก)
   const to = str(formData, "to") ?? undefined;
@@ -571,6 +601,8 @@ export async function addMaster(
   _prev: ActionResult,
   formData: FormData
 ): Promise<ActionResult> {
+  const denied = await ensurePlanManage();
+  if (denied) return { ok: false, errors: [denied] };
   const name = str(formData, "name");
   if (!name) return { ok: false, errors: ["กรุณากรอกชื่อ"] };
   const role = str(formData, "role");
@@ -595,6 +627,8 @@ export async function addMaster(
 }
 
 export async function renameMaster(kind: MasterKind, id: number, formData: FormData) {
+  const denied = await ensurePlanManage();
+  if (denied) throw new Error(denied);
   const name = str(formData, "name");
   if (!name) return;
   const role = str(formData, "role");
@@ -617,6 +651,8 @@ export async function renameMaster(kind: MasterKind, id: number, formData: FormD
 }
 
 export async function setDepartmentSla(id: number, formData: FormData) {
+  const denied = await ensurePlanManage();
+  if (denied) throw new Error(denied);
   const raw = str(formData, "sla_days");
   const days = raw ? Number(raw) : NaN;
   await prisma.department.update({
@@ -632,6 +668,8 @@ export async function toggleMasterActive(
   id: number,
   active: boolean
 ) {
+  const denied = await ensurePlanManage();
+  if (denied) throw new Error(denied);
   if (kind === "department") {
     await prisma.department.update({ where: { id }, data: { active } });
   } else if (kind === "member") {

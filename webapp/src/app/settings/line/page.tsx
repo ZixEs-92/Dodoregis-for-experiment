@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { lineConfig } from "@/lib/line";
 import LineTestForm from "@/components/LineTestForm";
+import { guardPageAdmin } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "ตั้งค่าแจ้งเตือน LINE — Dodoregis" };
 
-export default function LineSettingsPage() {
+export default async function LineSettingsPage() {
+  await guardPageAdmin();
   const cfg = lineConfig();
   const ready = cfg.hasToken && cfg.hasDestination;
 

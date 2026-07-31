@@ -1,11 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import MasterSection from "@/components/MasterSection";
 import SlaSettings from "@/components/SlaSettings";
+import { guardPageAdmin } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "ตั้งค่าข้อมูลระบบ — Dodoregis" };
 
 export default async function MasterPage() {
+  await guardPageAdmin();
   const [departments, members, partLocations, finishedLocations] = await Promise.all([
     prisma.department.findMany({ orderBy: { name: "asc" } }),
     prisma.member.findMany({ orderBy: { name: "asc" } }),

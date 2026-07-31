@@ -33,10 +33,12 @@ export default function AttachmentsSection({
   uploadAction,
   attachments,
   title,
+  readOnly = false,
 }: {
   uploadAction: (prev: ActionResult, formData: FormData) => Promise<ActionResult>;
   attachments: Attachment[];
   title: string;
+  readOnly?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(uploadAction, initial);
   const [mode, setMode] = useState<"file" | "link">("file");
@@ -84,13 +86,15 @@ export default function AttachmentsSection({
                     {att.url && !att.storedName ? " · ลิงก์ภายนอก" : ""}
                   </div>
                 </div>
-                <button
-                  onClick={() => onDelete(att.id, name)}
-                  disabled={deletingId && pendingId === att.id}
-                  className="text-[12px] text-coral hover:underline shrink-0 disabled:opacity-50"
-                >
-                  ลบ
-                </button>
+                {!readOnly && (
+                  <button
+                    onClick={() => onDelete(att.id, name)}
+                    disabled={deletingId && pendingId === att.id}
+                    className="text-[12px] text-coral hover:underline shrink-0 disabled:opacity-50"
+                  >
+                    ลบ
+                  </button>
+                )}
               </li>
             );
           })}
@@ -99,6 +103,7 @@ export default function AttachmentsSection({
         <p className="text-[13px] text-muted mt-4">ยังไม่มีไฟล์แนบ</p>
       )}
 
+      {!readOnly && (
       <div className="mt-5 pt-5 border-t border-hairline">
         <div className="flex gap-2 mb-3">
           <button
@@ -167,6 +172,7 @@ export default function AttachmentsSection({
           </div>
         </form>
       </div>
+      )}
     </section>
   );
 }
