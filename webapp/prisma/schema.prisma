@@ -19,6 +19,7 @@ model Department {
   active   Boolean       @default(true)
   slaDays  Int?          @map("sla_days") // เป้า lead time (วัน) request → ส่งรีพอร์ท สำหรับ TAT/SLA
   requests TestRequest[]
+  users    User[] // requester ที่ผูกกับแผนกนี้
 }
 
 model Member {
@@ -32,6 +33,7 @@ model Member {
   testRuns        TestRun[]  @relation("TestOwner")
   authoredReports Report[]   @relation("Author")
   approvedReports Report[]   @relation("Approver")
+  users           User[] // engineer login ที่ผูกกับสมาชิกคนนี้
 }
 
 model PartLocation {
@@ -336,4 +338,40 @@ model TestMethod {
   items         TestItem[]
 
   @@map("test_methods")
+}
+
+// ── ผู้ใช้ระบบ + สิทธิ์ (Phase 3 auth) ──
+// VIEWER   = อ่านอย่างเดียว (รวมคนที่สแกน QR)
+// REQUESTER= ลงทะเบียนงานใหม่ของแผนกตัวเอง (part/model/รายละเอียด) เห็นเฉพาะงานแผนกตัวเอง
+// ENGINEER = ปรับสถานะงาน + ลงผลเทส/รีพอร์ท
+// ADMIN    = แก้ได้ทั้งหมด (วางแผน/มอบหมาย/จัดการ master + users)
+
+enum UserRole {
+  ADMIN
+  ENGINEER
+  REQUESTER
+  VIEWER
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  passwordHash String   @map("password_hash")
+  displayName  String   @map("display_name")
+  role         UserRole @default(VIEWER)
+  active       Boolean  @default(true)
+
+  // requester ผูกกับแผนก (เห็นเฉพาะงานแผนกตัวเอง)
+  department   Department? @relation(fields: [departmentId], references: [id])
+  departmentId Int?        @map("department_id")
+
+  // engineer ผูกกับ Member (ชื่อผู้รับผิดชอบเดิม) เพื่อ map ownership/logs
+  member   Member? @relation(fields: [memberId], references: [id])
+  memberId Int?    @map("member_id")
+
+  lastLoginAt DateTime? @map("last_login_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("users")
 }

@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { logout } from "@/app/login/actions";
+import { ROLE_LABEL, canCreateRequest } from "@/lib/roles";
+import type { UserRole } from "@/generated/prisma/client";
 
 const links = [
   { href: "/", label: "หน้าหลัก" },
@@ -12,7 +15,13 @@ const links = [
   { href: "/master", label: "ตั้งค่าระบบ" },
 ];
 
-export default function NavBar({ unreadCount = 0 }: { unreadCount?: number }) {
+export default function NavBar({
+  unreadCount = 0,
+  user = null,
+}: {
+  unreadCount?: number;
+  user?: { name: string; role: UserRole } | null;
+}) {
   const pathname = usePathname();
 
   return (
@@ -66,9 +75,36 @@ export default function NavBar({ unreadCount = 0 }: { unreadCount?: number }) {
               )}
             </Link>
 
-            <Link href="/requests/new" className="btn-primary btn-sm">
-              + ลงงานใหม่
-            </Link>
+            {canCreateRequest(user?.role) && (
+              <Link href="/requests/new" className="btn-primary btn-sm">
+                + ลงงานใหม่
+              </Link>
+            )}
+
+            {user ? (
+              <div className="flex items-center gap-2 pl-1 sm:pl-2 sm:border-l sm:border-hairline">
+                <div className="hidden sm:flex flex-col leading-tight text-right">
+                  <span className="text-[13px] font-medium text-ink">{user.name}</span>
+                  <span className="text-[11px] text-muted">{ROLE_LABEL[user.role]}</span>
+                </div>
+                <form action={logout}>
+                  <button
+                    type="submit"
+                    title="ออกจากระบบ"
+                    className="grid place-items-center w-10 h-10 rounded-lg text-body hover:bg-surface-soft transition-colors"
+                  >
+                    <span className="text-[16px] leading-none">⏻</span>
+                  </button>
+                </form>
+              </div>
+            ) : (
+              <Link
+                href="/login"
+                className="grid place-items-center h-10 px-3 rounded-lg text-[14px] font-medium text-body hover:bg-surface-soft transition-colors whitespace-nowrap"
+              >
+                เข้าสู่ระบบ
+              </Link>
+            )}
           </div>
         </div>
       </div>

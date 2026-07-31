@@ -45,6 +45,7 @@ next-env.d.ts
 # sqlite database
 *.db
 *.db-journal
+dev.db.bak*
 
 # uploaded attachment files
 /uploads

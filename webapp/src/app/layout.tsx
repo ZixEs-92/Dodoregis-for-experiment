@@ -3,6 +3,7 @@ import { Inter, Noto_Sans_Thai } from "next/font/google";
 import "./globals.css";
 import NavBar from "@/components/NavBar";
 import { getUnreadCount } from "@/lib/notifications";
+import { getCurrentUser } from "@/lib/auth";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -28,11 +29,15 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const unreadCount = await getUnreadCount().catch(() => 0);
+  const currentUser = await getCurrentUser().catch(() => null);
+  const navUser = currentUser
+    ? { name: currentUser.displayName, role: currentUser.role }
+    : null;
 
   return (
     <html lang="th" className={`${inter.variable} ${notoThai.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-surface-soft text-body font-sans">
-        <NavBar unreadCount={unreadCount} />
+        <NavBar unreadCount={unreadCount} user={navUser} />
         <main className="flex-1 w-full max-w-6xl mx-auto px-3 py-5 sm:px-6 sm:py-8">
           {children}
         </main>
