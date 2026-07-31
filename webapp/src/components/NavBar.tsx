@@ -6,14 +6,15 @@ import { logout } from "@/app/login/actions";
 import { ROLE_LABEL, canCreateRequest } from "@/lib/roles";
 import type { UserRole } from "@/generated/prisma/client";
 
-const links = [
+const baseLinks = [
   { href: "/", label: "หน้าหลัก" },
   { href: "/schedule", label: "ตารางงาน" },
   { href: "/requests", label: "รายการงาน" },
   { href: "/analytics", label: "วิเคราะห์" },
   { href: "/reports", label: "รายงาน" },
-  { href: "/master", label: "ตั้งค่าระบบ" },
 ];
+// เมนูเฉพาะ admin (หน้า /master ถูก guard ไว้อยู่แล้ว — ซ่อนเมนูให้ UX ไม่งง)
+const adminLinks = [{ href: "/master", label: "ตั้งค่าระบบ" }];
 
 export default function NavBar({
   unreadCount = 0,
@@ -23,6 +24,7 @@ export default function NavBar({
   user?: { name: string; role: UserRole } | null;
 }) {
   const pathname = usePathname();
+  const links = user?.role === "ADMIN" ? [...baseLinks, ...adminLinks] : baseLinks;
 
   return (
     <header className="sticky top-0 z-20 bg-canvas border-b border-hairline">
@@ -58,6 +60,18 @@ export default function NavBar({
           </nav>
 
           <div className="flex items-center gap-2 shrink-0">
+            <Link
+              href="/scan"
+              title="สแกน QR ชิ้นงาน"
+              className={`grid place-items-center w-10 h-10 rounded-lg transition-colors ${
+                pathname.startsWith("/scan")
+                  ? "bg-ink text-white"
+                  : "text-body hover:bg-surface-soft"
+              }`}
+            >
+              <span className="text-[18px] leading-none">📷</span>
+            </Link>
+
             <Link
               href="/notifications"
               title="แจ้งเตือน"

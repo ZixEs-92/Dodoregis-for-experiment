@@ -5,11 +5,12 @@ import { login, type LoginState } from "@/app/login/actions";
 
 const initial: LoginState = { error: null };
 
-export default function LoginForm() {
+export default function LoginForm({ next }: { next?: string }) {
   const [state, action, pending] = useActionState(login, initial);
 
   return (
     <form action={action} className="flex flex-col gap-4">
+      {next && <input type="hidden" name="next" value={next} />}
       <div className="flex flex-col gap-1.5">
         <label htmlFor="username" className="label-text">
           ชื่อผู้ใช้

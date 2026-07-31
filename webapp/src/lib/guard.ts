@@ -13,9 +13,11 @@ async function currentRole(): Promise<UserRole | null> {
 
 // ── ตัวกันระดับหน้า (เรียกต้น page component) — redirect ถ้าสิทธิ์ไม่พอ ──
 
-/** หน้าเฉพาะผู้สร้างงาน (requester+) — ไม่พอ ส่งไปหน้า login */
-export async function guardPageCreate(): Promise<void> {
-  if (!canCreateRequest(await currentRole())) redirect("/login");
+/** หน้าเฉพาะผู้สร้างงาน (requester+) — ไม่พอ ส่งไปหน้า login (พร้อมพากลับมาหน้าเดิมหลังล็อกอิน) */
+export async function guardPageCreate(nextPath?: string): Promise<void> {
+  if (!canCreateRequest(await currentRole())) {
+    redirect(nextPath ? `/login?next=${encodeURIComponent(nextPath)}` : "/login");
+  }
 }
 
 /** หน้าเฉพาะ admin — ไม่พอ ส่งกลับหน้าหลัก */

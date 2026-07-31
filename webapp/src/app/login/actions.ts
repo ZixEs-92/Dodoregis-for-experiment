@@ -36,7 +36,11 @@ export async function login(
     data: { lastLoginAt: new Date() },
   });
   await setSessionCookie(await signSession(user));
-  redirect("/"); // โยน NEXT_REDIRECT — ต้องอยู่นอก try/catch
+
+  // พากลับหน้าที่ตั้งใจจะไปก่อนโดนส่งมาล็อกอิน (รับเฉพาะ path ภายใน กัน open-redirect)
+  const nextRaw = String(formData.get("next") ?? "");
+  const next = nextRaw.startsWith("/") && !nextRaw.startsWith("//") ? nextRaw : "/";
+  redirect(next); // โยน NEXT_REDIRECT — ต้องอยู่นอก try/catch
 }
 
 export async function logout(): Promise<void> {
