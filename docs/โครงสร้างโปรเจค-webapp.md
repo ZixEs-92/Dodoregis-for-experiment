@@ -23,18 +23,21 @@
 - 🌐 `APP_BASE_URL` ตั้งเป็น LAN IP แล้ว (`http://172.20.10.8:3000`) เพื่อให้สแกน QR จากมือถือได้ — IP นี้เปลี่ยนได้ ต้องแก้ตาม
 - DB จริงอยู่ที่ `webapp/dev.db` · ไฟล์อัปโหลด `webapp/uploads/` · `.env` (ทั้งหมดไม่ขึ้น git)
 
-## ▶️ ทำต่อ / จุดที่คุยค้าง (อัปเดต 2026-07-23)
+## ▶️ ทำต่อ / จุดที่คุยค้าง (อัปเดต 2026-07-31)
 
-**เพิ่งทำเสร็จ (session 2026-07-23):**
-- ✅ **QR ระดับ item** บนหน้า item + ปุ่มพิมพ์ label เดี่ยว/ทุก item — **commit `534d8d3` (ยังไม่ push)**
-- ✅ **สไลด์นำเสนอผู้บริหาร** `docs/Dodoregis-นำเสนอผู้บริหาร.pptx` (18 สไลด์ + สกรีนช็อตหน้าจอจริง · สร้างด้วย python-pptx สคริปต์อยู่ใน scratchpad) — **ยังไม่ commit**
-- ✅ **แผน auth/requester portal** `docs/แผน-auth-user-แผนกเพิ่มงานเอง.md` + memory `plan-auth-requester-portal` — **ยังไม่ commit**
+**เพิ่งทำเสร็จ (session 2026-07-31):**
+- ✅ **หน้าสแกน QR ในแอป** `/scan` — เปิดกล้องอ่าน QR แล้วเด้งเข้าหน้างาน (BarcodeDetector บน Android / jsQR บน iPhone) · อ่าน QR เดิมได้โดยตัดโดเมนทิ้ง → ใช้ได้แม้ URL เปลี่ยน (กล้องต้องเปิดผ่าน https/localhost)
+- ✅ **คู่มือ deploy Cloudflare** `docs/Dodoregis-คู่มือ-Cloudflare.pptx` (14 สไลด์: Tunnel + Access)
+- ✅ **Phase 3a (auth core):** โมเดล `User` + enum `UserRole`, login/logout, session (jose cookie 8ชม. + bcrypt), `lib/auth.ts` + `lib/roles.ts`, หน้า `/login`, script `npm run create-user`, NavBar โชว์ผู้ใช้/logout
+- ✅ **Phase 3b (บังคับสิทธิ์):** `lib/guard.ts` กันฝั่ง server ทุก action (16 ตัว) + page guard (`/requests/new`→login, `/master` `/settings/line`→admin) + ซ่อน UI ตาม role (viewer อ่านอย่างเดียว)
 
-**งานหลักถัดไป (พร้อมเริ่ม): implement Phase 3 — auth + ให้แผนกเพิ่มงานเอง**
-- อ่านแผนเต็ม: `docs/แผน-auth-user-แผนกเพิ่มงานเอง.md`
-- ตัดสินใจแล้ว: บัญชีในระบบ (user/pass + bcrypt) · 4 roles (Admin/Engineer/Requester/Viewer) · requester เห็นเฉพาะแผนกตัวเอง
-- เริ่มที่ **Phase 3a (auth core):** โมเดล `User`, login/logout, session (jose cookie), `middleware.ts`, seed admin, เติม `changedBy` จาก session
-- ระวัง: Phase 3c ทำ `TestItem.ownerId` เป็น nullable → กระทบ dashboard/schedule/item/report ต้อง handle "ยังไม่มอบหมาย"
+**การตัดสินใจใหม่ (2026-07-31):** การ "ดู" เปิดให้ทุกคน (ไม่ต้องล็อกอิน) → viewer = คนที่ยังไม่ล็อกอิน (เหมาะกับสแกน QR หน้างาน) · ล็อกอินเฉพาะตอนสร้าง/แก้ · ทำหน้าจัดการผู้ใช้ (3e) ก่อน 3c
+
+**งานหลักถัดไป: Phase 3e → 3c → 3d** (อ่านแผน: `docs/แผน-auth-user-แผนกเพิ่มงานเอง.md`)
+- **3e** หน้า "จัดการผู้ใช้" (admin เพิ่ม/แก้/รีเซ็ต user ผ่านหน้าจอ ไม่ต้องพิมพ์คำสั่ง)
+- **3c** พอร์ทัล requester: ทำ `TestItem.ownerId` เป็น **nullable** → กระทบ dashboard/schedule/item/report ต้อง handle "ยังไม่มอบหมาย" · requester เห็นเฉพาะแผนกตัวเอง
+- **3d** คิวรอ admin วางแผน (มอบหมาย owner + วันที่ plan)
+- หมายเหตุ: Next streaming `redirect()` ส่ง client-side meta-refresh (200 ไม่ใช่ 307) — เทสด้วย curl จะไม่เห็นการ redirect ต้องเปิด browser จริง
 
 **เรื่องที่ค้าง (2): ทำให้ "ที่เก็บ raw data" กดเปิดโฟลเดอร์ได้จริง**
 - สถานะตอนนี้: ช่อง raw data ถ้าใส่ **http/https = เป็นลิงก์กดได้** · ถ้าเป็น path เครื่อง/UNC (`\\EVA-NAS02\EVA-Shared`) = แสดง text + **ปุ่มคัดลอก** (เอาไปวางใน File Explorer)
@@ -127,7 +130,7 @@ webapp/
 
 ## Backlog (ยังไม่ได้ทำ — เลือกทำต่อได้)
 
-1. **Authentication + requester portal** — 📄 **มีแผนเต็มแล้ว: `docs/แผน-auth-user-แผนกเพิ่มงานเอง.md`** · ล็อกอิน (user/pass) + 4 roles + ให้แผนกเพิ่มงานเอง/admin วางแผน · ปลดล็อก `changed_by` ใน log · เริ่ม Phase 3a
+1. **Auth + requester portal** — 📄 `docs/แผน-auth-user-แผนกเพิ่มงานเอง.md` · **3a (auth core) + 3b (บังคับสิทธิ์) ทำแล้ว** · เหลือ 3e หน้าจัดการผู้ใช้ → 3c พอร์ทัล requester (ownerId nullable) → 3d คิววางแผน · ยังต้องปลดล็อก `changed_by` จาก session
 2. **เปิดใช้ groundwork ฟีเจอร์ 5-7** (schema พร้อมแล้ว):
    - **Equipment** — หน้าจัดการเครื่อง + เลือกเครื่องตอนบันทึก test run + เตือนวันสอบเทียบ (calibration_due)
    - **Test method library** — หน้าคลัง method + เลือกใส่ test_detail อัตโนมัติ
@@ -141,7 +144,7 @@ webapp/
 > ✅ ทำแล้ว: โมเดล 2 ชั้น (rollup) + QR ระดับใบ **+ QR ระดับ item**, หน้า item แบบแท็บ, ชื่อการทดสอบ (testName),
 > ตารางงานรายสัปดาห์ (`/schedule`), รายงาน+export CSV (`/reports`), หน้า LINE OA (`/settings/line`),
 > audit/location logs, แจ้งเตือน, analytics (คอขวด/CFD/aging), รวม repo + push GitHub,
-> **สไลด์นำเสนอผู้บริหาร (`docs/Dodoregis-นำเสนอผู้บริหาร.pptx`)**, **แผน auth Phase 3**
+> **สไลด์นำเสนอผู้บริหาร (`docs/Dodoregis-นำเสนอผู้บริหาร.pptx`)**, **auth Phase 3a+3b (login/session + role guards ฝั่ง server, viewer อ่านอย่างเดียว)**, **หน้าสแกน QR ในแอป `/scan`**, **คู่มือ deploy Cloudflare (`docs/Dodoregis-คู่มือ-Cloudflare.pptx`)**
 
 ## Deployment / เข้าถึงจากมือถือ (มีเอกสารแผนแล้ว ยังไม่ได้ทำจริง)
 

@@ -10,11 +10,11 @@
 - แผนโปรเจคฉบับเต็ม: `docs/แผนโปรเจค_ระบบลงทะเบียนติดตามงานทดสอบ.docx`
 - Data model ละเอียด: `docs/data-model.md` (อัปเดตเป็นโครงสร้าง multi-item + logs/notifications แล้ว)
 - Phase 1 (Google Sheets + AppSheet) มี template พร้อมใช้แล้ว: `template/` (xlsx + Apps Script)
-- **Phase 2: Web app พัฒนาแล้ว** ที่ `webapp/` (Next.js 16 + SQLite/Prisma 7 + Tailwind) — ครบ: โมเดล 2 ชั้น (ใบมีสถานะรวม rollup + item มีสถานะเอง), หน้า item แบบแท็บ, QR ระดับใบ **+ ระดับ item**, ชื่อการทดสอบ (testName), multi-item, master data, ไฟล์แนบ, audit/location logs, TAT/SLA, แจ้งเตือน (in-app + webhook/LINE + หน้า `/settings/line`), `/schedule` (ตารางงานสัปดาห์), `/analytics` (คอขวด/CFD/aging), `/reports` + `/api/export` (CSV รายปี/เดือน)
+- **Phase 2: Web app พัฒนาแล้ว** ที่ `webapp/` (Next.js 16 + SQLite/Prisma 7 + Tailwind) — ครบ: โมเดล 2 ชั้น (ใบมีสถานะรวม rollup + item มีสถานะเอง), หน้า item แบบแท็บ, QR ระดับใบ **+ ระดับ item**, ชื่อการทดสอบ (testName), multi-item, master data, ไฟล์แนบ, audit/location logs, TAT/SLA, แจ้งเตือน (in-app + webhook/LINE + หน้า `/settings/line`), `/schedule` (ตารางงานสัปดาห์), `/analytics` (คอขวด/CFD/aging), `/reports` + `/api/export` (CSV รายปี/เดือน), **auth (login/session + role guards ฝั่ง server ทุก action, viewer ดูอย่างเดียวไม่ต้องล็อกอิน)**, **หน้าสแกน QR ในแอป `/scan`**
   - เริ่มรัน: `cd webapp && npm run dev` · คู่มือ/โครงสร้าง: `docs/โครงสร้างโปรเจค-webapp.md` · README: `webapp/README.md`
   - **GitHub (repo เดียวทั้งโปรเจค):** https://github.com/ZixEs-92/Dodoregis-for-experiment (branch main) · `.env`/`dev.db`/`uploads/` ไม่ขึ้น git
   - สไลด์นำเสนอผู้บริหาร: `docs/Dodoregis-นำเสนอผู้บริหาร.pptx`
-- **ขั้นถัดไป (Phase 3 — มีแผนเต็มแล้ว):** auth + ให้แผนกเพิ่มงานเอง/admin วางแผน → `docs/แผน-auth-user-แผนกเพิ่มงานเอง.md` (ตัดสินใจแล้ว: user/pass, 4 roles, requester เห็นเฉพาะแผนก · เริ่ม Phase 3a)
+- **Phase 3 (auth) — 3a+3b ทำแล้ว:** login/session (bcrypt+jose) + role guards ฝั่ง server ทุก action + ซ่อน UI ตาม role (viewer ดูอย่างเดียว ไม่ต้องล็อกอิน) · สร้าง user: `npm run create-user -- <user> <pass> <ROLE> "<ชื่อ>"` · **เหลือ 3e (หน้าจัดการผู้ใช้) → 3c (พอร์ทัล requester, ownerId nullable) → 3d (คิววางแผน)** → `docs/แผน-auth-user-แผนกเพิ่มงานเอง.md`
 - ขั้นถัดไปอื่น (backlog): เปิด groundwork equipment/test method, ตั้ง cron แจ้งเตือนจริง, deploy/เข้าถึงมือถือ (ดูเอกสารแผนใน `docs/`) — รวมทั้งหมดใน `docs/โครงสร้างโปรเจค-webapp.md`
 
 ## Data Model (สรุป — ฉบับเต็มดู docs/data-model.md)
