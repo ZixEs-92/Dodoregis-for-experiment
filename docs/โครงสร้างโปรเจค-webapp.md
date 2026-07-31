@@ -33,11 +33,15 @@
 
 **การตัดสินใจใหม่ (2026-07-31):** การ "ดู" เปิดให้ทุกคน (ไม่ต้องล็อกอิน) → viewer = คนที่ยังไม่ล็อกอิน (เหมาะกับสแกน QR หน้างาน) · ล็อกอินเฉพาะตอนสร้าง/แก้ · ทำหน้าจัดการผู้ใช้ (3e) ก่อน 3c
 
-**งานหลักถัดไป: Phase 3e → 3c → 3d** (อ่านแผน: `docs/แผน-auth-user-แผนกเพิ่มงานเอง.md`)
-- **3e** หน้า "จัดการผู้ใช้" (admin เพิ่ม/แก้/รีเซ็ต user ผ่านหน้าจอ ไม่ต้องพิมพ์คำสั่ง)
-- **3c** พอร์ทัล requester: ทำ `TestItem.ownerId` เป็น **nullable** → กระทบ dashboard/schedule/item/report ต้อง handle "ยังไม่มอบหมาย" · requester เห็นเฉพาะแผนกตัวเอง
-- **3d** คิวรอ admin วางแผน (มอบหมาย owner + วันที่ plan)
-- หมายเหตุ: Next streaming `redirect()` ส่ง client-side meta-refresh (200 ไม่ใช่ 307) — เทสด้วย curl จะไม่เห็นการ redirect ต้องเปิด browser จริง
+**เสร็จเพิ่ม (session เดียวกัน): 3e + 3c + ปรับ UX**
+- ✅ **3e จัดการผู้ใช้** `/settings/users` (admin) — สร้างบัญชี (requester ต้องเลือกแผนก, engineer ผูกรายชื่อทีมได้), ตั้งรหัสใหม่, เปิด/ปิดบัญชี (ห้ามปิดตัวเอง) · เข้าจากหน้า /master
+- ✅ **3c requester portal** — `TestItem.ownerId` เป็น nullable + `TestRequest.createdById` (migration `nullable_owner_created_by`) · ทุกจุดแสดง "ยังไม่มอบหมาย" (dashboard/รายการ/ใบ/item/ตารางงาน "⏳ ยังไม่มอบหมาย"/analytics/report/แจ้งเตือน) · requester: แผนกถูกล็อกฝั่ง server, ไม่เห็นช่อง owner/plan (admin วางแผนให้), หน้า `/` + `/requests` เห็นเฉพาะแผนกตัวเอง · `changedBy` ใน log เติมจาก session แล้ว
+- ✅ **UX**: หน้า login เป็นประตูทางเข้า (การ์ดสแกน QR + เข้าดูไม่ล็อกอิน อยู่เหนือฟอร์ม), NavBar มีปุ่ม 📷 สแกน, เมนู "ตั้งค่าระบบ" เห็นเฉพาะ admin, login รองรับ `?next=` พากลับหน้าเดิม
+
+**งานหลักถัดไป: Phase 3d — คิวรอ admin วางแผน**
+- หน้า list งานสถานะ 1 ที่ `ownerId = null` → admin กดมอบหมาย owner + ลงวันที่ plan (+ เลือก test method)
+- พิจารณากติกา: item ที่ยังไม่มีเจ้าของไม่ควรขยับเกินสถานะ 1–2 จนกว่าจะมอบหมาย
+- หมายเหตุ: Next streaming `redirect()` ส่ง client-side meta-refresh (200 ไม่ใช่ 307) — เทสด้วย curl จะไม่เห็นการ redirect ต้องเปิด browser จริง · React แทรก `<!-- -->` ระหว่างตัวแปรใน SSR HTML — grep ข้อความจากหน้าเว็บต้อง match แบบหลวม
 
 **เรื่องที่ค้าง (2): ทำให้ "ที่เก็บ raw data" กดเปิดโฟลเดอร์ได้จริง**
 - สถานะตอนนี้: ช่อง raw data ถ้าใส่ **http/https = เป็นลิงก์กดได้** · ถ้าเป็น path เครื่อง/UNC (`\\EVA-NAS02\EVA-Shared`) = แสดง text + **ปุ่มคัดลอก** (เอาไปวางใน File Explorer)
