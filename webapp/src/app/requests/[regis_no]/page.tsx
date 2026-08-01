@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { generateQrDataUrl } from "@/lib/qr";
+import { generateQrDataUrl, qrMode } from "@/lib/qr";
 import { toDisplayDate } from "@/lib/date";
 import { isOverdue, isUrgent } from "@/lib/workflow";
 import { requestRollup, PHASE_LABEL, PHASE_COLOR } from "@/lib/rollup";
@@ -98,6 +98,9 @@ export default async function RequestOverviewPage({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={qrDataUrl} alt={`QR ${regisNo}`} className="w-28 h-28 border border-hairline rounded-lg bg-white p-2" />
           <span className="text-[11px] text-muted">QR ใบรีเควส</span>
+          {qrMode() === "code" && (
+            <Link href="/scan" className="text-[11px] text-muted hover:text-ink">📷 สแกนผ่านแอป</Link>
+          )}
           <Link href={`/labels?regis=${regisNo}`} className="text-[12px] text-link hover:underline">พิมพ์ label ใบนี้</Link>
           {request.items.length > 0 && (
             <Link

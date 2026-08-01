@@ -1,5 +1,6 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { generateQrDataUrl } from "@/lib/qr";
+import { generateQrDataUrl, qrMode } from "@/lib/qr";
 import PrintButton from "@/components/PrintButton";
 
 export const metadata = { title: "พิมพ์ QR Label — Dodoregis" };
@@ -57,6 +58,22 @@ export default async function LabelsPage({
         </div>
         <PrintButton />
       </div>
+
+      {qrMode() === "code" ? (
+        <div className="no-print card p-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px]">
+          <span className="text-ink font-medium">📷 QR นี้เก็บ &quot;รหัสงาน&quot; ไม่ใช่ลิงก์</span>
+          <span className="text-muted">
+            — พิมพ์ครั้งเดียวใช้ได้ตลอด ถึงจะย้ายเซิร์ฟเวอร์/เปลี่ยนโดเมนก็ไม่ต้องพิมพ์ใหม่ ·
+            สแกนที่หน้า
+          </span>
+          <Link href="/scan" className="text-link hover:underline">สแกน QR ในแอป</Link>
+        </div>
+      ) : (
+        <div className="no-print card p-4 text-[13px] text-muted">
+          🔗 QR นี้เก็บ URL เต็ม (กล้องมือถือปกติสแกนแล้วเปิดได้เลย) —
+          ถ้าที่อยู่เว็บเปลี่ยน label ที่พิมพ์ไปแล้วจะชี้ที่อยู่เก่า
+        </div>
+      )}
 
       {labels.length === 0 && (
         <p className="no-print text-muted">ไม่พบงานที่เลือก</p>

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { generateQrDataUrl } from "@/lib/qr";
+import { generateQrDataUrl, qrMode } from "@/lib/qr";
 import { toInputDate, toDisplayDate } from "@/lib/date";
 import {
   isUrgent,
@@ -411,6 +411,11 @@ export default async function ItemDetailPage({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={itemQr} alt={`QR ${item.itemCode}`} className="w-28 h-28 border border-hairline rounded-lg bg-white p-2" />
           <span className="text-[11px] text-muted">QR รายการนี้</span>
+          {qrMode() === "code" && (
+            <Link href="/scan" className="text-[11px] text-muted hover:text-ink text-center leading-tight">
+              📷 สแกนผ่านแอป
+            </Link>
+          )}
           <Link href={`/labels?ids=${item.itemCode}`} className="text-[12px] text-link hover:underline">พิมพ์ label item นี้</Link>
         </div>
       </div>
