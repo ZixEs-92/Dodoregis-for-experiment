@@ -96,40 +96,64 @@ webapp/
 │  ├─ seed.ts              ข้อมูลตัวอย่าง (npx prisma db seed)
 │  ├─ clear.ts             ล้างงานเก็บ master (npm run db:clear)
 │  ├─ notify.ts            สคริปต์แจ้งเตือน standalone (npm run notify · ตั้ง cron)
+│  ├─ create-user.ts       สร้าง/รีเซ็ตบัญชีจาก CLI (npm run create-user)
 │  └─ migrations/          ประวัติ migration
+├─ public/icon.svg         ไอคอนแอปสำหรับ PWA
 ├─ uploads/                ไฟล์แนบที่อัปโหลด (ไม่ขึ้น git)
 ├─ dev.db                  ฐานข้อมูล SQLite จริง (ไม่ขึ้น git)
 └─ src/
    ├─ app/
-   │  ├─ layout.tsx        โครงหน้า + โหลดฟอนต์ Inter/Noto Thai + NavBar
-   │  ├─ page.tsx          / — แดชบอร์ด (นับราย item)
+   │  ├─ layout.tsx        โครงหน้า + ฟอนต์ + NavBar + BottomNav + UiProvider (toast/confirm)
+   │  ├─ page.tsx          ⭐ / — หน้าแรก **แยกตามบทบาท** (requester / engineer+admin) · ไม่ล็อกอิน → /login
+   │  ├─ manifest.ts       PWA manifest (ติดตั้งลงหน้าจอมือถือ)
    │  ├─ loading.tsx       loading UI ระหว่างเปลี่ยนหน้า
-   │  ├─ actions.ts        ⭐ server actions ทั้งหมด (สร้าง/แก้/เปลี่ยนสถานะ/อัปโหลด/master)
+   │  ├─ actions.ts        ⭐ server actions ทั้งหมด — **ทุกตัวมี guard สิทธิ์ต้นฟังก์ชัน**
+   │  ├─ login/            page.tsx (ประตูทางเข้า: สแกน/ดูงาน/ล็อกอิน) + actions.ts (login/logout)
+   │  ├─ scan/page.tsx     ⭐ /scan — เปิดกล้องอ่าน QR แล้วเด้งเข้าหน้างาน (BarcodeDetector / jsQR)
+   │  ├─ board/page.tsx    ⭐ /board — บอร์ดคัมบังตามสถานะ (ลากเปลี่ยนสถานะ)
+   │  ├─ planning/page.tsx ⭐ /planning — คิวรอวางแผน (admin มอบหมาย + ลงวันที่ · เลือกหลายรายการได้)
    │  ├─ requests/
-   │  │  ├─ page.tsx           /requests — รายการจัดกลุ่มตามใบรีเควส
-   │  │  ├─ new/page.tsx       /requests/new — ลงใบใหม่ + item แรก
+   │  │  ├─ page.tsx           /requests — มุมมองด่วน + ตัวกรองพับ + จัดกลุ่มตามสถานะ/ใบ
+   │  │  ├─ new/page.tsx       /requests/new — ลงใบใหม่ (requester: แผนกล็อก + ซ่อนช่องวางแผน)
    │  │  └─ [regis_no]/page.tsx  ภาพรวมใบรีเควส + รายการ item + ไฟล์แนบระดับใบ
-   │  ├─ items/[item_code]/page.tsx  ⭐ รายละเอียด item แบบ **แท็บ** (ภาพรวม/รายละเอียด/runs/report/ไฟล์/ประวัติ)
-   │  ├─ schedule/page.tsx    ⭐ /schedule — ตารางงานรายสัปดาห์ (คน×วัน + วันนี้)
-   │  ├─ analytics/page.tsx   ⭐ /analytics — KPI + คอขวด + aging WIP + CFD (ช่วง month/30d/all)
-   │  ├─ reports/page.tsx     ⭐ /reports — สรุปรายปี/เดือน + ปุ่มดาวน์โหลด CSV
-   │  ├─ notifications/page.tsx  /notifications — ศูนย์แจ้งเตือน (generate on load + mark read)
-   │  ├─ settings/line/page.tsx  /settings/line — ผูก LINE OA + ทดสอบส่ง
+   │  ├─ items/[item_code]/page.tsx  ⭐ รายละเอียด item — **3 แท็บ** (ภาพรวม / ผลทดสอบ+รีพอร์ท / ไฟล์+ประวัติ)
+   │  ├─ schedule/page.tsx    /schedule — ตารางงานรายสัปดาห์ (คน×วัน · มีแถว "ยังไม่มอบหมาย")
+   │  ├─ analytics/page.tsx   /analytics — KPI + คอขวด + aging WIP + CFD
+   │  ├─ reports/page.tsx     /reports — สรุปรายปี/เดือน + ดาวน์โหลด CSV
+   │  ├─ notifications/page.tsx  ศูนย์แจ้งเตือน (generate on load + mark read)
+   │  ├─ settings/
+   │  │  ├─ page.tsx           ⭐ /settings — หน้ารวมตั้งค่า (admin)
+   │  │  ├─ users/             ⭐ จัดการผู้ใช้ (page + actions: สร้าง/ตั้งรหัส/เปิด-ปิด)
+   │  │  └─ line/page.tsx      ผูก LINE OA + ทดสอบส่ง
    │  ├─ master/page.tsx      /master — dropdown (แผนก/ทีม/ที่เก็บ) + เป้า SLA
    │  ├─ labels/page.tsx      /labels — พิมพ์ QR label 50×25mm (?regis= ระดับใบ / ?ids= ระดับ item)
+   │  ├─ api/search/route.ts  ⭐ ค้นหางานสำหรับแถบคำสั่งด่วน (จำกัดสิทธิ์ตามบทบาท)
    │  ├─ api/attachments/[id]/route.ts  เสิร์ฟ/เปิดไฟล์แนบ
-   │  └─ api/export/route.ts  ⭐ ดาวน์โหลด CSV (type=detail|dept|requester|owner|month)
-   ├─ components/         Tabs, WeeklySchedule, GroupedRequests, LoadingBoard, MoveLocationForm,
-   │                      ActivityTimeline, SlaSettings, LineTestForm, ฟอร์มต่างๆ, NavBar+bell
+   │  └─ api/export/route.ts  ดาวน์โหลด CSV (type=detail|dept|requester|owner|month)
+   ├─ components/
+   │  ├─ ui/Feedback.tsx      ⭐ UiProvider + useToast / useToastOnSaved / useConfirm
+   │  ├─ ui/Icon.tsx          ⭐ ชุดไอคอน SVG ชุดเดียวของทั้งระบบ (แทน emoji)
+   │  ├─ NavBar.tsx           แถบบน (เดสก์ท็อป) + CommandPalette · BottomNav.tsx แถบล่าง (มือถือ)
+   │  ├─ CommandPalette.tsx   ⭐ Ctrl/⌘+K ค้นงาน + กระโดดหน้า
+   │  ├─ KanbanBoard.tsx      ⭐ บอร์ดลากเปลี่ยนสถานะ (มือถือใช้ select ในการ์ด)
+   │  ├─ StatusStepper.tsx    ⭐ ปุ่มหลัก (คำกริยา) + dropdown สถานะ + เมนู ⋯ + บอกเงื่อนไขก่อนกด
+   │  ├─ home/RequesterHome.tsx · home/MyWorkBlock.tsx  ⭐ หน้าแรกแยกตามบทบาท
+   │  ├─ PlanningQueue.tsx    คิววางแผน + มอบหมายหลายรายการ · UsersManager.tsx จัดการผู้ใช้
+   │  └─ Tabs, WeeklySchedule, GroupedRequests, LoadingBoard, MoveLocationForm,
+   │     ActivityTimeline, SlaSettings, LineTestForm, ฟอร์มต่างๆ
    └─ lib/
       ├─ prisma.ts        Prisma client (ต้องใช้ผ่าน better-sqlite3 adapter)
-      ├─ workflow.ts      ⭐ สถานะ 10 ค่า, สี/สีทึบกราฟ, validation, overdue/urgent, label ที่เก็บ
-      ├─ rollup.ts        ⭐ สถานะรวมใบรีเควส (phase + progress) จาก items
+      ├─ auth.ts          ⭐ server-only: bcrypt, session cookie (jose 8ชม.), getCurrentUser/requireRole
+      ├─ roles.ts         ⭐ client-safe: ROLE_LABEL + canEditTests/canCreateRequest/canPlanAndManage
+      ├─ guard.ts         ⭐ ensureUser/ensureCreateRequest/ensureEditTests/ensurePlanManage + guardPage*
+      ├─ workflow.ts      ⭐ สถานะ 10 ค่า, STATUS_ACTION_LABEL (คำกริยาบนปุ่ม), validation, overdue/urgent
+      ├─ rollup.ts        สถานะรวมใบรีเควส (phase + progress) จาก items
       ├─ tat.ts           lead time + SLA status (TAT)
-      ├─ analytics.ts     ⭐ time-in-status (คอขวด), aging, CFD replay
-      ├─ report.ts / csv.ts  ⭐ ดึง+สรุปข้อมูลรายงาน + สร้าง CSV (BOM)
+      ├─ analytics.ts     time-in-status (คอขวด), aging, CFD replay
+      ├─ report.ts / csv.ts  ดึง+สรุปข้อมูลรายงาน + สร้าง CSV (BOM)
       ├─ notifications.ts / notify-external.ts / line.ts  แจ้งเตือน + ส่งออก webhook/LINE
-      ├─ regisNo.ts · uploads.ts · qr.ts · date.ts · format.ts (มี testTitle)
+      ├─ qr.ts            ⭐ QR_MODE=code (ฝังรหัสงาน · ค่าเริ่มต้น) | url (ฝัง URL เต็ม)
+      ├─ regisNo.ts · uploads.ts · date.ts · format.ts (มี testTitle)
 ```
 
 ## จุดที่ต้องรู้ก่อนแก้ (สำคัญ)
@@ -139,30 +163,39 @@ webapp/
 - `params` / `searchParams` ในหน้า page เป็น **Promise** ต้อง await
 - แก้ dropdown ไม่ต้องแก้โค้ด — เข้าหน้า `/master` เพิ่ม/แก้/ปิดใช้งานได้เลย
 - workflow แยกต่อ item: สถานะ/แผน/รีพอร์ท อยู่ที่ตาราง `test_items` ไม่ใช่ `test_requests`
+- **สิทธิ์ต้องกันฝั่ง server เสมอ** — ทุก server action ที่แก้ข้อมูลเรียก `ensure*()` จาก `lib/guard.ts` ต้นฟังก์ชัน · การซ่อนปุ่มบน UI เป็นแค่ความสะดวก
+- **`ownerId` เป็น nullable** — งานที่ยังไม่มอบหมายต้องแสดง "ยังไม่มอบหมาย" ทุกที่ และเดินหน้าเกินสถานะ 2 ไม่ได้
+- **eslint ของโปรเจคห้าม `setState` ตรง ๆ ใน `useEffect`** (`react-hooks/set-state-in-effect` เป็น error ไม่ใช่ warning) — ให้ derive ค่าแทน, ย้ายไป event handler, หรือใช้ `useSyncExternalStore` (เช่นอ่าน localStorage ใน `NewRequestForm`)
+- **`redirect()` ในโหมด streaming ส่ง meta-refresh ฝั่ง client (HTTP 200 ไม่ใช่ 307)** — เทสด้วย curl จะไม่เห็น ต้องเช็คว่า body ของหน้าหายไป + มี `__next-page-redirect`
+- React แทรก `<!-- -->` ระหว่างตัวแปรใน SSR HTML — ถ้า grep ข้อความจากหน้าเว็บให้ match แบบหลวม
 
 ## Backlog (ยังไม่ได้ทำ — เลือกทำต่อได้)
 
-1. **Auth + requester portal** — 📄 `docs/แผน-auth-user-แผนกเพิ่มงานเอง.md` · **3a (auth core) + 3b (บังคับสิทธิ์) ทำแล้ว** · เหลือ 3e หน้าจัดการผู้ใช้ → 3c พอร์ทัล requester (ownerId nullable) → 3d คิววางแผน · ยังต้องปลดล็อก `changed_by` จาก session
+1. **Deploy ให้เข้าถึงจากมือถือจริง** — Cloudflare Tunnel + โดเมนบริษัท (มีคู่มือ `docs/Dodoregis-คู่มือ-Cloudflare.pptx` แล้ว) · จำเป็นถ้าอยากให้กล้องในหน้า `/scan` ทำงานบนมือถือ (ต้อง https)
 2. **เปิดใช้ groundwork ฟีเจอร์ 5-7** (schema พร้อมแล้ว):
    - **Equipment** — หน้าจัดการเครื่อง + เลือกเครื่องตอนบันทึก test run + เตือนวันสอบเทียบ (calibration_due)
    - **Test method library** — หน้าคลัง method + เลือกใส่ test_detail อัตโนมัติ
-   - **Requester portal** — หน้าอ่านอย่างเดียวด้วย `public_token` ให้แผนกที่รีเควสเช็คสถานะเอง
+   - **`public_token`** — ลิงก์อ่านอย่างเดียวรายใบ (ตอนนี้ requester ใช้บัญชีจริงแล้ว จึงเป็นตัวเลือกเสริม)
 3. **ตั้งค่าช่องทางแจ้งเตือนจริง** — ใส่ `NOTIFY_WEBHOOK_URL` หรือ LINE token ใน `.env` + ตั้ง cron รัน `npm run notify` เช้าทุกวัน
-4. **ปุ่มลบจริงในเว็บ** สำหรับ admin (ตอนนี้ลบผ่าน `npm run db:clear` หรือ Prisma Studio)
-5. **ย้าย SQLite → Supabase/Postgres** เพื่อใช้หลายเครื่องพร้อมกัน · auto-generate report (CoA)
-6. label แบบพิมพ์ลง A4 หลายดวง/แผ่น, favicon/logo, รูปถ่ายชิ้นงานแบบ gallery
-7. หน้า not-found คืน HTTP 404 จริง (ตอนนี้คืน 200 เพราะ loading.tsx stream)
+4. **งาน UX ที่พักไว้** (จากรีวิว) — มุมมองบันทึกเองได้, แนบไฟล์ตั้งแต่ตอนสร้างงาน, ปุ่มสุ่มรหัสผ่าน + บังคับเปลี่ยนรหัสครั้งแรก, "จำฉันไว้", เรียงลำดับคอลัมน์, ตาราง test run เป็นการ์ดบนมือถือ
+5. **ปุ่มลบจริงในเว็บ** สำหรับ admin (ตอนนี้ลบผ่าน `npm run db:clear` หรือ Prisma Studio)
+6. **ย้าย SQLite → Supabase/Postgres** เพื่อใช้หลายเครื่องพร้อมกัน · auto-generate report (CoA)
+7. label แบบพิมพ์ลง A4 หลายดวง/แผ่น, รูปถ่ายชิ้นงานแบบ gallery
+8. หน้า not-found คืน HTTP 404 จริง (ตอนนี้คืน 200 เพราะ loading.tsx stream)
 
-> ✅ ทำแล้ว: โมเดล 2 ชั้น (rollup) + QR ระดับใบ **+ QR ระดับ item**, หน้า item แบบแท็บ, ชื่อการทดสอบ (testName),
-> ตารางงานรายสัปดาห์ (`/schedule`), รายงาน+export CSV (`/reports`), หน้า LINE OA (`/settings/line`),
-> audit/location logs, แจ้งเตือน, analytics (คอขวด/CFD/aging), รวม repo + push GitHub,
-> **สไลด์นำเสนอผู้บริหาร (`docs/Dodoregis-นำเสนอผู้บริหาร.pptx`)**, **auth Phase 3a+3b (login/session + role guards ฝั่ง server, viewer อ่านอย่างเดียว)**, **หน้าสแกน QR ในแอป `/scan`**, **คู่มือ deploy Cloudflare (`docs/Dodoregis-คู่มือ-Cloudflare.pptx`)**
+> ✅ ทำแล้ว: โมเดล 2 ชั้น (rollup), QR ระดับใบ+ระดับ item (**เก็บรหัสงาน ไม่ผูก URL**), ชื่อการทดสอบ (testName),
+> `/schedule`, `/analytics`, `/reports`+export CSV, `/settings/line`, audit/location logs, แจ้งเตือน, รวม repo + push GitHub,
+> **Phase 3 auth ครบ** (login/session + role guards ฝั่ง server + จัดการผู้ใช้ + requester portal + คิววางแผน),
+> **หน้าสแกน QR ในแอป `/scan`**, **UX รอบใหญ่** (หน้าแรกตามบทบาท, status control ใหม่, toast/confirm, แถบล่างมือถือ, `/settings`, **บอร์ดคัมบัง `/board`**, **Ctrl+K**, ไอคอน SVG, PWA),
+> เอกสาร: **สไลด์ผู้บริหาร** `docs/Dodoregis-นำเสนอผู้บริหาร.pptx` · **คู่มือ Cloudflare** `docs/Dodoregis-คู่มือ-Cloudflare.pptx`
 
-## Deployment / เข้าถึงจากมือถือ (มีเอกสารแผนแล้ว ยังไม่ได้ทำจริง)
+## Deployment / เข้าถึงจากมือถือ (ยังไม่ได้ทำจริง)
 
-- `docs/แผน-เข้าถึงจากมือถือ-ฟรี.md` · `docs/แผน-cloudflare-tunnel-access.md` · `docs/แผน-deploy-railway.md`
-- สรุป: **LAN** = ฟรีสุดสำหรับใช้ในออฟฟิศ (ตอนนี้ตั้ง `APP_BASE_URL` เป็น LAN IP แล้ว) · **Tailscale** ฟรีสำหรับทีมนอกออฟฟิศ ·
-  **Cloudflare Tunnel + Access** (เสียแค่ค่าโดเมน) ถ้าอยากสแกน QR จากที่ไหนก็ได้ + มี login · **Railway** ไม่ฟรีจริง (~$5/เดือน)
-- ถ้าเปิด public ต้องทำ **auth** ในแอปก่อน (อยู่ใน backlog ข้อ 1) · ยังไม่ตั้ง firewall port 3000 (ถ้ามือถือเข้าไม่ได้ให้เปิด)
+- คู่มือฉบับเต็ม: **`docs/Dodoregis-คู่มือ-Cloudflare.pptx`** (14 สไลด์ Tunnel + Access) · แผนเดิม: `docs/แผน-เข้าถึงจากมือถือ-ฟรี.md` · `docs/แผน-cloudflare-tunnel-access.md` · `docs/แผน-deploy-railway.md`
+- สรุปตัวเลือก: **LAN** ฟรีสุดสำหรับในออฟฟิศ · **Tailscale** ฟรีสำหรับทีมนอกออฟฟิศ · **Cloudflare Tunnel + Access** (ฟรี เสียแค่ค่าโดเมน ถ้าไม่มีโดเมนบริษัท) · **Railway** ไม่ฟรีจริง (~$5/เดือน + ต้องผูก volume ให้ SQLite/uploads)
+- ✅ auth ในแอปทำแล้ว (Phase 3) — แต่การ "ดู" ยังเปิดให้ทุกคนโดยเจตนา ถ้าเปิดสู่อินเทอร์เน็ตควรครอบด้วย **Cloudflare Access** หรือ network บริษัทอีกชั้น
+- **กล้องในหน้า `/scan` ทำงานเฉพาะ https หรือ localhost** — บน LAN http เบราว์เซอร์บล็อกเสมอ (ระบบจะ fallback ไปช่องกรอกรหัส) · iPhone ต้องเปิดใน Safari ไม่ใช่เบราว์เซอร์ในแอป LINE
+- QR **ไม่ผูกกับ URL แล้ว** (`QR_MODE=code`) → เปลี่ยนโดเมน/ย้ายเซิร์ฟเวอร์ไม่ต้องพิมพ์ label ใหม่ · `cloudflared` ติดตั้งไว้แล้วที่ `C:\Program Files (x86)\cloudflared\`
+- ยังไม่ตั้ง firewall port 3000 (ถ้ามือถือเข้า LAN ไม่ได้ให้เปิด rule)
 
 ดูรายละเอียดบั๊กที่แก้ไปแล้วใน `docs/แผนปรับปรุง-webapp.md`
