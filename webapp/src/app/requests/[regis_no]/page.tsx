@@ -84,8 +84,38 @@ export default async function RequestOverviewPage({
           </div>
 
           <dl className="grid grid-cols-1 gap-x-6 gap-y-1.5 text-[14px] sm:grid-cols-2">
-            <Row label="แผนกที่รีเควส" value={request.requestDept.name} />
-            <Row label="ผู้รีเควส" value={request.requester} />
+            {request.testObject && (
+              <div className="sm:col-span-2">
+                <Row label="Test object" value={<span className="font-medium text-ink">{request.testObject}</span>} />
+              </div>
+            )}
+            {request.purpose && (
+              <div className="sm:col-span-2">
+                <Row label="วัตถุประสงค์" value={<span className="whitespace-pre-wrap">{request.purpose}</span>} />
+              </div>
+            )}
+            <Row label="แผนกที่ขอ" value={request.requestDept.name} />
+            <Row label="ผู้ขอทดสอบ" value={request.requester} />
+            {request.requesterEmail && (
+              <Row
+                label="อีเมล"
+                value={
+                  <a href={`mailto:${request.requesterEmail}`} className="text-link hover:underline break-all">
+                    {request.requesterEmail}
+                  </a>
+                }
+              />
+            )}
+            {request.requesterPhone && (
+              <Row
+                label="เบอร์โทร"
+                value={
+                  <a href={`tel:${request.requesterPhone.replace(/[^\d+]/g, "")}`} className="text-link hover:underline">
+                    {request.requesterPhone}
+                  </a>
+                }
+              />
+            )}
             <Row label="วันที่ได้ใบรีเควส" value={toDisplayDate(request.requestDate)} />
             {request.remark && <Row label="หมายเหตุ" value={request.remark} />}
             {request.folderUrl && (
@@ -123,7 +153,14 @@ export default async function RequestOverviewPage({
         </div>
 
         {request.items.length === 0 ? (
-          <div className="card p-8 text-center text-muted">ยังไม่มี item — เพิ่มด้านล่าง</div>
+          <div className="card empty-state">
+            <p className="text-[15px] font-medium text-ink">ยังไม่มีรายการทดสอบในใบนี้</p>
+            <p className="text-[13px] text-muted">
+              {canCreate
+                ? "แตกใบนี้เป็นรายการทดสอบย่อยได้ที่ด้านล่าง — 1 รายการ = 1 ชิ้นงาน/หัวข้อทดสอบ ที่มีแผนและสถานะของตัวเอง"
+                : "ทีมแลปจะแตกใบนี้เป็นรายการทดสอบย่อยให้"}
+            </p>
+          </div>
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {request.items.map((it) => {

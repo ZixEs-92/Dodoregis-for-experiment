@@ -5,13 +5,19 @@ import { canEditTests } from "@/lib/roles";
 import { isOverdue, isUrgent } from "@/lib/workflow";
 import { testTitle } from "@/lib/format";
 import { toDisplayDate } from "@/lib/date";
-import KanbanBoard, { BoardItem } from "@/components/KanbanBoard";
+import KanbanBoard, { BoardItem, BoardLayout } from "@/components/KanbanBoard";
 import type { Prisma } from "@/generated/prisma/client";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "บอร์ดงาน — Dodoregis" };
 
-export default async function BoardPage() {
+export default async function BoardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ layout?: string }>;
+}) {
+  const { layout: layoutParam } = await searchParams;
+  const layout: BoardLayout = layoutParam === "columns" ? "columns" : "rows";
   const user = await getCurrentUser();
   const canEdit = canEditTests(user?.role ?? null);
 
@@ -49,14 +55,34 @@ export default async function BoardPage() {
           <h1 className="text-[22px] font-medium text-ink sm:text-[26px]">บอร์ดงาน</h1>
           <p className="text-[14px] text-muted mt-0.5">
             {canEdit
-              ? "ลากการ์ดข้ามคอลัมน์เพื่อเปลี่ยนสถานะ (บนมือถือใช้เมนูในการ์ด)"
+              ? "ลากการ์ดข้ามกลุ่มเพื่อเปลี่ยนสถานะ (บนมือถือใช้เมนูในการ์ด)"
               : "ดูความคืบหน้าของงานทั้งหมดเรียงตามขั้นตอน"}
             {onHold.length > 0 && ` · พักงานอยู่ ${onHold.length} รายการ`}
           </p>
         </div>
-        <Link href="/requests" className="btn-secondary btn-sm">
-          ดูเป็นรายการ →
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex rounded-lg border border-hairline bg-canvas p-0.5">
+            <Link
+              href="/board"
+              className={`rounded-md px-3 py-1.5 text-[13px] font-medium ${
+                layout === "rows" ? "bg-ink text-white" : "text-muted hover:text-ink"
+              }`}
+            >
+              แนวตั้ง
+            </Link>
+            <Link
+              href="/board?layout=columns"
+              className={`rounded-md px-3 py-1.5 text-[13px] font-medium ${
+                layout === "columns" ? "bg-ink text-white" : "text-muted hover:text-ink"
+              }`}
+            >
+              แนวนอน
+            </Link>
+          </span>
+          <Link href="/requests" className="btn-secondary btn-sm">
+            ดูเป็นรายการ →
+          </Link>
+        </div>
       </div>
 
       {cards.length === 0 ? (
@@ -65,7 +91,7 @@ export default async function BoardPage() {
           <p className="text-[13px] text-muted">เมื่อมีการลงทะเบียนงาน การ์ดจะมาเรียงที่นี่</p>
         </div>
       ) : (
-        <KanbanBoard items={cards} canEdit={canEdit} />
+        <KanbanBoard items={cards} canEdit={canEdit} layout={layout} />
       )}
     </div>
   );

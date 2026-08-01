@@ -107,8 +107,17 @@ model TestRequest {
   requestDept   Department @relation(fields: [requestDeptId], references: [id])
   requestDeptId Int        @map("request_dept_id")
 
-  requester   String
+  // ผู้ขอทดสอบ — แยกช่องเพื่อให้ติดต่อกลับได้จริง (เดิมรวมอยู่ช่องเดียว)
+  requester      String // ชื่อผู้ขอ
+  requesterEmail String? @map("requester_email")
+  requesterPhone String? @map("requester_phone")
+
   requestDate DateTime @map("request_date")
+
+  // ระดับ "ใบ": ส่งอะไรมาทดสอบ และขอทดสอบเพราะอะไร
+  // รายการทดสอบย่อยอยู่ที่ TestItem (เพิ่มทีหลังได้ ทั้งผู้ขอและ admin)
+  testObject String? @map("test_object") // ชิ้นงาน/ตัวอย่างที่ส่งมา (ภาพรวมของทั้งใบ)
+  purpose    String? // ที่มา/วัตถุประสงค์ของการขอทดสอบ
 
   remark    String?
   folderUrl String? @map("folder_url")

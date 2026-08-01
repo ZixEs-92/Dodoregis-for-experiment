@@ -80,21 +80,28 @@ export async function notifyStatusChange(
   });
 }
 
-/** แจ้งเตือนตอนแผนกลงทะเบียนงานใหม่เข้ามา — ให้ admin รู้โดยไม่ต้องรอเปิดแดชบอร์ด */
-export async function notifyNewRequest(
-  itemId: number,
-  itemCode: string,
-  partName: string,
-  deptName: string,
-  requester: string
-): Promise<void> {
+/**
+ * แจ้งเตือนตอนแผนกลงทะเบียนงานใหม่เข้ามา — ให้ admin รู้โดยไม่ต้องรอเปิดแดชบอร์ด
+ * itemId เป็น null ได้ เพราะใบรีเควสสร้างโดยยังไม่มีรายการทดสอบก็ได้
+ */
+export async function notifyNewRequest(opts: {
+  itemId: number | null;
+  regisNo: string;
+  subject: string; // ชื่อรายการทดสอบ หรือ test object ของใบ
+  deptName: string;
+  requester: string;
+  needsItems?: boolean;
+}): Promise<void> {
+  const what = opts.needsItems
+    ? `ใบรีเควสใหม่ (ยังไม่มีรายการทดสอบ)`
+    : `งานใหม่รอวางแผน`;
   await prisma.notification.create({
     data: {
       kind: "NEW_REQUEST",
       level: "WARNING",
-      itemId,
-      dedupeKey: `NEW_REQUEST:${itemId}`,
-      message: `งานใหม่รอวางแผน: ${itemCode} · ${partName} · จาก ${deptName} (${requester})`,
+      itemId: opts.itemId,
+      dedupeKey: `NEW_REQUEST:${opts.regisNo}:${opts.itemId ?? "no-item"}`,
+      message: `${what}: ${opts.regisNo} · ${opts.subject} · จาก ${opts.deptName} (${opts.requester})`,
     },
   });
 }

@@ -109,14 +109,14 @@ export default function NewRequestForm({
         </div>
       )}
 
-      <FieldGroup title="ข้อมูลใบรีเควส">
+      <FieldGroup title="ผู้ขอทดสอบ">
         {lockedDept ? (
-          <Field label="แผนกที่รีเควส">
+          <Field label="แผนกที่ขอ">
             <div className="input flex items-center bg-surface-soft text-ink">{lockedDept.name}</div>
             <span className="text-[11px] text-muted">ล็อกตามแผนกของบัญชีคุณ</span>
           </Field>
         ) : (
-          <Field label="แผนกที่รีเควส" required>
+          <Field label="แผนกที่ขอ" required>
             <select name="request_dept" required className="input">
               <option value="">เลือกแผนก</option>
               {departments.map((d) => (
@@ -125,29 +125,63 @@ export default function NewRequestForm({
             </select>
           </Field>
         )}
-        <Field label="ผู้รีเควส (ชื่อ + ช่องทางติดต่อ)" required>
-          <input type="text" name="requester" required className="input" />
+        <Field label="ชื่อผู้ขอ" required>
+          <input type="text" name="requester" required className="input" placeholder="ชื่อ–นามสกุล" />
+        </Field>
+        <Field label="อีเมล">
+          <input type="email" name="requester_email" className="input" placeholder="name@company.com" />
+        </Field>
+        <Field label="เบอร์โทร / เบอร์ภายใน">
+          <input type="tel" name="requester_phone" className="input" placeholder="เช่น 081-234-5678 หรือ ต่อ 1234" />
         </Field>
         <Field label="วันที่ได้ใบรีเควส" required>
           <input type="date" name="request_date" required defaultValue={today} className="input" />
         </Field>
-        <Field label="หมายเหตุใบรีเควส (รวม)">
+      </FieldGroup>
+
+      <FieldGroup title="งานที่ขอทดสอบ (ระดับใบรีเควส)">
+        <Field label="Test object — ส่งอะไรมาทดสอบ" required className="sm:col-span-2">
+          <input
+            type="text"
+            name="test_object"
+            required
+            className="input"
+            placeholder="เช่น ไฟหน้า P703 LED ตัวอย่างจากล็อตผลิตแรก 5 ชิ้น"
+          />
+          <span className="text-[11px] text-muted">
+            ภาพรวมของทั้งใบ — รายละเอียดการทดสอบแต่ละหัวข้อไปกรอกเป็นรายการย่อยด้านล่าง
+          </span>
+        </Field>
+        <Field label="ที่มา / วัตถุประสงค์ที่ขอทดสอบ" className="sm:col-span-2">
+          <textarea
+            name="purpose"
+            rows={2}
+            className="input"
+            placeholder="เช่น เปลี่ยนซัพพลายเออร์เลนส์ ต้องยืนยันว่าค่าความสว่างยังผ่านมาตรฐานเดิม"
+          />
+        </Field>
+        <Field label="หมายเหตุใบรีเควส" className="sm:col-span-2">
           <input type="text" name="request_remark" className="input" />
         </Field>
       </FieldGroup>
 
-      <div className="rounded-lg bg-surface-soft border border-hairline p-4 flex flex-col gap-5">
+      <details className="rounded-lg bg-surface-soft border border-hairline p-4">
+        <summary className="cursor-pointer select-none text-[14px] font-medium text-ink">
+          เพิ่มรายการทดสอบรายการแรก (ไม่บังคับ)
+        </summary>
+        <div className="mt-4 flex flex-col gap-5">
         <p className="text-[13px] text-muted">
-          <span className="chip bg-ink text-white mr-2">Item #01</span>
-          กรอกชิ้นงานชิ้นแรก — เพิ่ม item อื่นได้ภายหลังในหน้าใบรีเควส
+          <span className="chip bg-ink text-white mr-2">รายการที่ 1</span>
+          1 ใบรีเควสมีได้หลายรายการทดสอบ — จะกรอกตอนนี้ หรือให้ทีมแลปช่วยแตกรายการให้ทีหลังก็ได้
         </p>
 
         <FieldGroup title="ชิ้นงานที่ทดสอบ" nested>
           <Field label="ชื่อการทดสอบ (item test name)" className="sm:col-span-2">
             <input type="text" name="test_name" placeholder="เช่น Photometric Test (KST)" className="input" />
           </Field>
-          <Field label="ชื่อชิ้นงาน / รุ่น Lamp" required className="sm:col-span-2">
-            <input type="text" name="part_name" required className="input" />
+          {/* ไม่ใส่ required ที่นี่ เพราะทั้งส่วนนี้เป็นตัวเลือก — server ตรวจให้เมื่อเริ่มกรอกแล้วเท่านั้น */}
+          <Field label="ชื่อชิ้นงาน / รุ่น Lamp" className="sm:col-span-2">
+            <input type="text" name="part_name" className="input" />
           </Field>
           <Field label="Part No.">
             <input type="text" name="part_no" className="input" />
@@ -155,8 +189,8 @@ export default function NewRequestForm({
           <Field label="จำนวนพาร์ท">
             <input type="number" name="qty" min={0} className="input" />
           </Field>
-          <Field label="รายละเอียดเทส / มาตรฐานอ้างอิง" required className="sm:col-span-2">
-            <textarea name="test_detail" required rows={3} className="input" />
+          <Field label="รายละเอียดเทส / มาตรฐานอ้างอิง" className="sm:col-span-2">
+            <textarea name="test_detail" rows={3} className="input" />
           </Field>
         </FieldGroup>
 
@@ -186,16 +220,20 @@ export default function NewRequestForm({
               <textarea name="remark" rows={2} placeholder='พิมพ์ "make รีพอร์ตเลย" หากเป็นงานด่วน' className="input" />
             </Field>
             <p className="text-[12px] text-muted sm:col-span-2">
-              📌 ผู้รับผิดชอบ + วันที่แผนทดสอบ ทีมแลป/admin จะเป็นคนวางแผนให้หลังรับงาน
+              ผู้รับผิดชอบ + วันที่แผนทดสอบ ทีมแลปจะเป็นคนวางแผนให้หลังรับงาน
             </p>
           </FieldGroup>
         )}
-      </div>
+        </div>
+      </details>
 
-      <div className="flex gap-3">
-        <button type="submit" disabled={pending} className="btn-primary">
-          {pending ? "กำลังบันทึก..." : "บันทึกใบรีเควส + item แรก"}
+      <div className="flex flex-col gap-2">
+        <button type="submit" disabled={pending} className="btn-primary w-fit">
+          {pending ? "กำลังบันทึก..." : "บันทึกใบรีเควส"}
         </button>
+        <span className="text-[12px] text-muted">
+          ระบบจะออกเลขใบให้อัตโนมัติ · เพิ่มรายการทดสอบภายหลังได้ในหน้าใบรีเควส
+        </span>
       </div>
     </form>
   );

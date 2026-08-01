@@ -96,6 +96,16 @@ function validateItemFields(fd: FormData): string[] {
   return errors;
 }
 
+/** ผู้ใช้เริ่มกรอกรายการทดสอบแรกหรือยัง (ใบรีเควสสร้างโดยไม่มี item ก็ได้) */
+function hasItemInput(fd: FormData): boolean {
+  return Boolean(
+    str(fd, "part_name") ||
+      str(fd, "test_detail") ||
+      str(fd, "test_name") ||
+      str(fd, "part_no"),
+  );
+}
+
 function itemDataFromForm(fd: FormData) {
   return {
     partName: str(fd, "part_name")!,
@@ -133,11 +143,15 @@ export async function createRequestWithItem(
   }
   const deptId = isRequester ? user.departmentId! : num(formData, "request_dept");
 
+  // รายการทดสอบ (item) ไม่บังคับตอนสร้างใบ — เพิ่มทีหลังได้ทั้งผู้ขอและ admin
+  const withItem = hasItemInput(formData);
+
   const errors: string[] = [];
   if (!deptId) errors.push("กรุณาเลือกแผนกที่รีเควส");
-  if (!str(formData, "requester")) errors.push("กรุณากรอกผู้รีเควส");
+  if (!str(formData, "requester")) errors.push("กรุณากรอกชื่อผู้ขอทดสอบ");
+  if (!str(formData, "test_object")) errors.push("กรุณากรอกสิ่งที่ส่งมาทดสอบ (test object)");
   if (!date(formData, "request_date")) errors.push("กรุณากรอกวันที่ได้ใบรีเควส");
-  errors.push(...validateItemFields(formData));
+  if (withItem) errors.push(...validateItemFields(formData));
   if (errors.length > 0) return { ok: false, errors };
 
   const requestDate = date(formData, "request_date")!;
@@ -154,19 +168,27 @@ export async function createRequestWithItem(
           seq,
           requestDeptId: deptId!,
           requester: str(formData, "requester")!,
+          requesterEmail: str(formData, "requester_email"),
+          requesterPhone: str(formData, "requester_phone"),
+          testObject: str(formData, "test_object"),
+          purpose: str(formData, "purpose"),
           requestDate,
           remark: str(formData, "request_remark"),
           createdById: user.id,
-          items: {
-            create: {
-              itemNo: 1,
-              itemCode: buildItemCode(regisNo, 1),
-              ...itemData,
-              statusLogs: {
-                create: { toStatus: "S1_RECEIVED", note: createNote, changedBy: user.displayName },
-              },
-            },
-          },
+          ...(withItem
+            ? {
+                items: {
+                  create: {
+                    itemNo: 1,
+                    itemCode: buildItemCode(regisNo, 1),
+                    ...itemData,
+                    statusLogs: {
+                      create: { toStatus: "S1_RECEIVED", note: createNote, changedBy: user.displayName },
+                    },
+                  },
+                },
+              }
+            : {}),
         },
       });
       createdRegisNo = regisNo;
@@ -175,20 +197,23 @@ export async function createRequestWithItem(
     }
   }
 
-  // งานที่ยังไม่มีผู้รับผิดชอบ = เข้าคิวรอวางแผน → แจ้งเตือนให้ admin รู้ทันที
-  if (createdRegisNo && !itemData.ownerId) {
-    const created = await prisma.testItem.findFirst({
-      where: { regisNo: createdRegisNo, itemNo: 1 },
-      include: { request: { include: { requestDept: true } } },
+  // แจ้งเตือน admin: มีใบใหม่เข้ามา (ทั้งกรณีมี item รอวางแผน และกรณีที่ยังไม่มีรายการทดสอบ)
+  if (createdRegisNo) {
+    const created = await prisma.testRequest.findUnique({
+      where: { regisNo: createdRegisNo },
+      include: { requestDept: true, items: { orderBy: { itemNo: "asc" }, take: 1 } },
     });
-    if (created) {
-      await notifyNewRequest(
-        created.id,
-        created.itemCode,
-        created.partName,
-        created.request.requestDept.name,
-        created.request.requester,
-      ).catch(() => {});
+    const firstItem = created?.items[0];
+    const needsNotice = !withItem || !itemData.ownerId;
+    if (created && needsNotice) {
+      await notifyNewRequest({
+        itemId: firstItem?.id ?? null,
+        regisNo: created.regisNo,
+        subject: firstItem?.partName ?? created.testObject ?? "—",
+        deptName: created.requestDept.name,
+        requester: created.requester,
+        needsItems: !withItem,
+      }).catch(() => {});
     }
   }
 
