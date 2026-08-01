@@ -79,16 +79,39 @@ export default async function ReportsPage({
       </div>
 
       {/* ดาวน์โหลด */}
-      <section className="card p-5">
-        <h2 className="text-[15px] font-medium text-ink mb-1">ดาวน์โหลด CSV (เก็บเป็นข้อมูล)</h2>
-        <p className="text-[12px] text-muted mb-4">ช่วง {periodLabel} · ไฟล์ UTF-8 เปิดใน Excel/Google Sheets ได้</p>
-        <div className="flex flex-wrap gap-2">
-          <DownloadBtn qs={qs} type="detail" label="รายการงานทั้งหมด (ละเอียด)" primary />
-          <DownloadBtn qs={qs} type="dept" label="สรุปตามแผนก" />
-          <DownloadBtn qs={qs} type="requester" label="สรุปตามผู้รีเควส" />
-          <DownloadBtn qs={qs} type="owner" label="สรุปตามผู้รับผิดชอบ" />
-          <DownloadBtn qs={`year=${year}`} type="month" label="สรุปรายเดือน (ทั้งปี)" />
+      <section className="card p-5 flex flex-col gap-4">
+        <div>
+          <h2 className="text-[15px] font-medium text-ink">ดาวน์โหลด CSV</h2>
+          <p className="text-[12px] text-muted mt-0.5">
+            ช่วง {periodLabel} · UTF-8 เปิดใน Excel / Google Sheets ได้เลย · มีลิงก์เปิดงานในไฟล์ให้กดกลับเข้าระบบ
+          </p>
         </div>
+
+        <div className="flex flex-col gap-2">
+          <span className="text-[12px] font-medium text-muted uppercase tracking-wide">ข้อมูลดิบ (ใช้ทำ pivot / วิเคราะห์ต่อ)</span>
+          <div className="flex flex-wrap gap-2">
+            <DownloadBtn qs={qs} type="detail" label="รายการทดสอบ — ละเอียดทุกคอลัมน์" primary />
+            <DownloadBtn qs={qs} type="requests" label="รายใบรีเควส" />
+            <DownloadBtn qs={qs} type="parts" label="รายชิ้นงาน / รุ่น Lamp" />
+            <DownloadBtn qs={qs} type="runs" label="รายครั้งที่เทส (test run)" />
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <span className="text-[12px] font-medium text-muted uppercase tracking-wide">สรุปพร้อมใช้</span>
+          <div className="flex flex-wrap gap-2">
+            <DownloadBtn qs={qs} type="dept" label="สรุปตามแผนก" />
+            <DownloadBtn qs={qs} type="requester" label="สรุปตามผู้ขอทดสอบ" />
+            <DownloadBtn qs={qs} type="owner" label="สรุปตามผู้รับผิดชอบ" />
+            <DownloadBtn qs={`year=${year}`} type="month" label="สรุปรายเดือน (ทั้งปี)" />
+          </div>
+        </div>
+
+        <p className="text-[12px] text-muted border-t border-hairline pt-3">
+          💡 ไฟล์ <b>รายการทดสอบ</b> มีครบทั้งข้อมูลติดต่อผู้ขอ · ที่เก็บพาร์ท/ชิ้นงาน/raw data ·
+          แผนเทียบจริง · lead time + สถานะ SLA · จำนวนครั้งที่เทส · ลิงก์รีพอร์ท —
+          เอาไปทำ pivot ได้โดยไม่ต้องกลับมาเปิดเว็บ
+        </p>
       </section>
 
       {totalItems === 0 ? (
@@ -153,7 +176,10 @@ function CountTable({
               <th className="p-2.5 text-[12px] font-medium text-muted uppercase tracking-wide">{col}</th>
               {showSub && <th className="p-2.5 text-[12px] font-medium text-muted uppercase tracking-wide">{subCol}</th>}
               <th className="p-2.5 text-[12px] font-medium text-muted uppercase tracking-wide text-right">จำนวนงาน</th>
-              <th className="p-2.5 text-[12px] font-medium text-muted uppercase tracking-wide text-right">ใบรีเควส</th>
+              <th className="p-2.5 text-[12px] font-medium text-muted uppercase tracking-wide text-right">ใบ</th>
+              <th className="p-2.5 text-[12px] font-medium text-muted uppercase tracking-wide text-right">ปิดแล้ว</th>
+              <th className="p-2.5 text-[12px] font-medium text-muted uppercase tracking-wide text-right">เลยกำหนด</th>
+              <th className="p-2.5 text-[12px] font-medium text-muted uppercase tracking-wide text-right">lead เฉลี่ย</th>
             </tr>
           </thead>
           <tbody>
@@ -163,10 +189,15 @@ function CountTable({
                 {showSub && <td className="p-2.5 text-muted">{r.sub ?? "—"}</td>}
                 <td className="p-2.5 text-right font-medium text-ink">{r.items}</td>
                 <td className="p-2.5 text-right text-body">{r.requests}</td>
+                <td className="p-2.5 text-right text-body">{r.done}</td>
+                <td className={`p-2.5 text-right ${r.overdue > 0 ? "font-medium text-coral" : "text-muted"}`}>
+                  {r.overdue || "—"}
+                </td>
+                <td className="p-2.5 text-right text-body">{r.avgLead != null ? `${r.avgLead} วัน` : "—"}</td>
               </tr>
             ))}
             {shown.length === 0 && (
-              <tr><td colSpan={showSub ? 4 : 3} className="p-6 text-center text-muted">ไม่มีข้อมูล</td></tr>
+              <tr><td colSpan={showSub ? 7 : 6} className="p-6 text-center text-muted">ไม่มีข้อมูล</td></tr>
             )}
           </tbody>
         </table>
