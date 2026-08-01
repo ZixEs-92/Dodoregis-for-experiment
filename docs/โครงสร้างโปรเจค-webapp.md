@@ -23,7 +23,23 @@
 - 🌐 `APP_BASE_URL` ตั้งเป็น LAN IP แล้ว (`http://172.20.10.8:3000`) เพื่อให้สแกน QR จากมือถือได้ — IP นี้เปลี่ยนได้ ต้องแก้ตาม
 - DB จริงอยู่ที่ `webapp/dev.db` · ไฟล์อัปโหลด `webapp/uploads/` · `.env` (ทั้งหมดไม่ขึ้น git)
 
-## ▶️ ทำต่อ / จุดที่คุยค้าง (อัปเดต 2026-07-31)
+## ▶️ ทำต่อ / จุดที่คุยค้าง (อัปเดต 2026-08-01)
+
+### 🔜 เริ่มตรงนี้ครั้งหน้า
+
+**ความเสี่ยงที่ควรปิดก่อน:** `dev.db` + `uploads/` อยู่บนเครื่องเดียว **ยังไม่มีสำรองอัตโนมัติ**
+สำรองที่มีคือไฟล์ `dev.db.bak-*` ที่สร้างมือก่อน migration แต่ก็อยู่เครื่องเดียวกัน
+→ เสนอไว้: สคริปต์ก๊อป `dev.db` + `uploads/` ขึ้น NAS/OneDrive + Task Scheduler รายวัน เก็บย้อนหลัง 30 วัน (**ผู้ใช้ยังไม่ตอบรับ**)
+
+**เรื่องที่ค้างอยู่จากการใช้งานจริง:**
+- ยังไม่มีใครบันทึก **test run** เลย (CSV `runs` ว่าง) → pass rate / retest วิเคราะห์ไม่ได้จนกว่าจะเริ่มบันทึก
+- **ยังไม่ได้ตั้งเป้า SLA รายแผนก** → คอลัมน์ "สถานะ SLA" ขึ้น "ไม่ได้ตั้งเป้า" ทุกแถว (ตั้งที่ `/master`)
+- `APP_BASE_URL` ใน `.env` ยังเป็น IP เก่า `172.20.10.8` (ไม่กระทบ เพราะ QR ใช้โหมด `code` และ CSV ใช้ host จริงแล้ว — แต่ถ้าจะสลับ `QR_MODE=url` ต้องแก้ก่อน)
+- Cloudflare quick tunnel ที่เปิดไว้ทดสอบเป็นลิงก์ชั่วคราว (หายเมื่อรีสตาร์ท) — ยังไม่ได้ deploy จริง
+
+**งานถัดไปที่เสนอไว้ (ยังไม่ทำ):** ให้ requester เห็น "ปกติใช้เวลากี่วัน" จาก SLA · ให้วิศวกรเปลี่ยนสถานะจากหน้าแรกได้เลย · หน้าแรก admin แสดงเทรนด์ (งานค้างเพิ่ม/ลด) ไม่ใช่แค่ตัวเลขวันนี้
+
+---
 
 **เพิ่งทำเสร็จ (session 2026-07-31):**
 - ✅ **หน้าสแกน QR ในแอป** `/scan` — เปิดกล้องอ่าน QR แล้วเด้งเข้าหน้างาน (BarcodeDetector บน Android / jsQR บน iPhone) · อ่าน QR เดิมได้โดยตัดโดเมนทิ้ง → ใช้ได้แม้ URL เปลี่ยน (กล้องต้องเปิดผ่าน https/localhost)
@@ -100,6 +116,7 @@ webapp/
 │  ├─ clear.ts             ล้างงานเก็บ master (npm run db:clear)
 │  ├─ notify.ts            สคริปต์แจ้งเตือน standalone (npm run notify · ตั้ง cron)
 │  ├─ create-user.ts       สร้าง/รีเซ็ตบัญชีจาก CLI (npm run create-user)
+│  ├─ backfill-parts.ts    ย้าย partName เดิมของ item → request_parts (รันครั้งเดียว · รันซ้ำได้)
 │  └─ migrations/          ประวัติ migration
 ├─ public/icon.svg         ไอคอนแอปสำหรับ PWA
 ├─ uploads/                ไฟล์แนบที่อัปโหลด (ไม่ขึ้น git)
@@ -113,37 +130,42 @@ webapp/
    │  ├─ actions.ts        ⭐ server actions ทั้งหมด — **ทุกตัวมี guard สิทธิ์ต้นฟังก์ชัน**
    │  ├─ login/            page.tsx (ประตูทางเข้า: สแกน/ดูงาน/ล็อกอิน) + actions.ts (login/logout)
    │  ├─ scan/page.tsx     ⭐ /scan — เปิดกล้องอ่าน QR แล้วเด้งเข้าหน้างาน (BarcodeDetector / jsQR)
-   │  ├─ board/page.tsx    ⭐ /board — บอร์ดคัมบังตามสถานะ (ลากเปลี่ยนสถานะ)
-   │  ├─ planning/page.tsx ⭐ /planning — คิวรอวางแผน (admin มอบหมาย + ลงวันที่ · เลือกหลายรายการได้)
+   │  ├─ board/page.tsx    ⭐ /board — บอร์ดงานตามสถานะ (แนวตั้ง · `?layout=columns` = แนวนอน)
+   │  ├─ admin/page.tsx    ⭐ /admin — ศูนย์รวมเครื่องมือผู้ดูแล (วางแผน/วิเคราะห์/รายงาน/ตั้งค่า)
+   │  ├─ planning/page.tsx ⭐ /planning — คิวรอวางแผน (มอบหมาย + ลงวันที่ · เลือกหลายรายการได้)
    │  ├─ requests/
-   │  │  ├─ page.tsx           /requests — มุมมองด่วน + ตัวกรองพับ + จัดกลุ่มตามสถานะ/ใบ
-   │  │  ├─ new/page.tsx       /requests/new — ลงใบใหม่ (requester: แผนกล็อก + ซ่อนช่องวางแผน)
-   │  │  └─ [regis_no]/page.tsx  ภาพรวมใบรีเควส + รายการ item + ไฟล์แนบระดับใบ
+   │  │  ├─ page.tsx           /requests — มุมมองด่วน + ตัวกรองพับ + **default จัดกลุ่มตามใบ**
+   │  │  ├─ new/page.tsx       /requests/new — ลงใบใหม่ (หลายรุ่น Lamp + หลายรายการทดสอบ)
+   │  │  └─ [regis_no]/page.tsx  ใบรีเควส + ชิ้นงาน + รายการทดสอบ + ไฟล์แนบระดับใบ
    │  ├─ items/[item_code]/page.tsx  ⭐ รายละเอียด item — **3 แท็บ** (ภาพรวม / ผลทดสอบ+รีพอร์ท / ไฟล์+ประวัติ)
-   │  ├─ schedule/page.tsx    /schedule — ตารางงานรายสัปดาห์ (คน×วัน · มีแถว "ยังไม่มอบหมาย")
+   │  ├─ schedule/page.tsx    ⭐ /schedule — **ปฏิทินรายเดือน** (`?view=week` = ตารางคน×วัน)
    │  ├─ analytics/page.tsx   /analytics — KPI + คอขวด + aging WIP + CFD
-   │  ├─ reports/page.tsx     /reports — สรุปรายปี/เดือน + ดาวน์โหลด CSV
+   │  ├─ reports/page.tsx     /reports — สรุป + **ดาวน์โหลด CSV 8 แบบ**
    │  ├─ notifications/page.tsx  ศูนย์แจ้งเตือน (generate on load + mark read)
    │  ├─ settings/
-   │  │  ├─ page.tsx           ⭐ /settings — หน้ารวมตั้งค่า (admin)
-   │  │  ├─ users/             ⭐ จัดการผู้ใช้ (page + actions: สร้าง/ตั้งรหัส/เปิด-ปิด)
+   │  │  ├─ page.tsx           /settings — หน้ารวมตั้งค่า (admin)
+   │  │  ├─ users/             จัดการผู้ใช้ (page + actions: สร้าง/ตั้งรหัส/เปิด-ปิด)
    │  │  └─ line/page.tsx      ผูก LINE OA + ทดสอบส่ง
    │  ├─ master/page.tsx      /master — dropdown (แผนก/ทีม/ที่เก็บ) + เป้า SLA
    │  ├─ labels/page.tsx      /labels — พิมพ์ QR label 50×25mm (?regis= ระดับใบ / ?ids= ระดับ item)
-   │  ├─ api/search/route.ts  ⭐ ค้นหางานสำหรับแถบคำสั่งด่วน (จำกัดสิทธิ์ตามบทบาท)
+   │  ├─ manifest.ts          PWA manifest
+   │  ├─ api/search/route.ts  ⭐ ค้นหางานสำหรับ Ctrl+K (จำกัดสิทธิ์ตามบทบาท)
    │  ├─ api/attachments/[id]/route.ts  เสิร์ฟ/เปิดไฟล์แนบ
-   │  └─ api/export/route.ts  ดาวน์โหลด CSV (type=detail|dept|requester|owner|month)
+   │  └─ api/export/route.ts  ⭐ CSV (type=detail|requests|parts|runs|dept|requester|owner|month)
    ├─ components/
    │  ├─ ui/Feedback.tsx      ⭐ UiProvider + useToast / useToastOnSaved / useConfirm
    │  ├─ ui/Icon.tsx          ⭐ ชุดไอคอน SVG ชุดเดียวของทั้งระบบ (แทน emoji)
-   │  ├─ NavBar.tsx           แถบบน (เดสก์ท็อป) + CommandPalette · BottomNav.tsx แถบล่าง (มือถือ)
+   │  ├─ NavBar.tsx           แถบบน (เดสก์ท็อป) · BottomNav.tsx แถบล่าง 5 ช่อง (มือถือ)
    │  ├─ CommandPalette.tsx   ⭐ Ctrl/⌘+K ค้นงาน + กระโดดหน้า
    │  ├─ KanbanBoard.tsx      ⭐ บอร์ดลากเปลี่ยนสถานะ (มือถือใช้ select ในการ์ด)
+   │  ├─ MonthSchedule.tsx    ⭐ ปฏิทินรายเดือน + แถบเจาะดูรายสัปดาห์ · WeeklySchedule.tsx คน×วัน
    │  ├─ StatusStepper.tsx    ⭐ ปุ่มหลัก (คำกริยา) + dropdown สถานะ + เมนู ⋯ + บอกเงื่อนไขก่อนกด
-   │  ├─ home/RequesterHome.tsx · home/MyWorkBlock.tsx  ⭐ หน้าแรกแยกตามบทบาท
+   │  ├─ NewRequestForm.tsx   ⭐ เพิ่มรุ่น Lamp / รายการทดสอบได้หลายอัน (ส่ง parts_json + items_json)
+   │  ├─ RequestParts.tsx     ⭐ จัดการชิ้นงานในใบ (เพิ่ม/ลบ · ลบไม่ได้ถ้ามีรายการใช้อยู่)
+   │  ├─ home/RequesterHome.tsx · MyWorkBlock.tsx · DepartmentBreakdown.tsx  ⭐ หน้าแรกตามบทบาท
    │  ├─ PlanningQueue.tsx    คิววางแผน + มอบหมายหลายรายการ · UsersManager.tsx จัดการผู้ใช้
-   │  └─ Tabs, WeeklySchedule, GroupedRequests, LoadingBoard, MoveLocationForm,
-   │     ActivityTimeline, SlaSettings, LineTestForm, ฟอร์มต่างๆ
+   │  └─ Tabs, GroupedRequests, LoadingBoard, MoveLocationForm, ActivityTimeline,
+   │     SlaSettings, LineTestForm, AddItemForm, ItemDetailsForm (ติ๊กเลือกชิ้นงาน)
    └─ lib/
       ├─ prisma.ts        Prisma client (ต้องใช้ผ่าน better-sqlite3 adapter)
       ├─ auth.ts          ⭐ server-only: bcrypt, session cookie (jose 8ชม.), getCurrentUser/requireRole

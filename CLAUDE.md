@@ -16,14 +16,27 @@
   - **GitHub (repo เดียวทั้งโปรเจค):** https://github.com/ZixEs-92/Dodoregis-for-experiment (branch main) · `.env`/`dev.db`/`uploads/` ไม่ขึ้น git
   - สไลด์นำเสนอผู้บริหาร: `docs/Dodoregis-นำเสนอผู้บริหาร.pptx`
 - **Phase 3 (auth + requester portal) — ✅ เสร็จครบ:** login/session + role guards ฝั่ง server ทุก action + ซ่อน UI ตาม role · จัดการผู้ใช้ `/settings/users` (admin) · requester portal (ownerId nullable, แผนกล็อกฝั่ง server, เห็นเฉพาะแผนกตัวเอง) · คิวรอวางแผน `/planning` (admin มอบหมาย + ลงวันที่ · item ไม่มีเจ้าของเดินหน้าเกินสถานะ 2 ไม่ได้) · **หน้าแรก = หน้า login** (ประตูทางเข้า: สแกน QR/ดูรายการงานได้ไม่ต้องล็อกอิน) → อ้างอิง `docs/แผน-auth-user-แผนกเพิ่มงานเอง.md`
-- ขั้นถัดไปอื่น (backlog): เปิด groundwork equipment/test method, ตั้ง cron แจ้งเตือนจริง, deploy/เข้าถึงมือถือ (ดูเอกสารแผนใน `docs/`) — รวมทั้งหมดใน `docs/โครงสร้างโปรเจค-webapp.md`
+- **รอบ UX + โครงสร้างข้อมูล (ส.ค. 2026):** หน้าแรกแยกตามบทบาท · แถบเมนูเหลือ 4 อัน (เครื่องมือ admin รวมที่ `/admin`) · ตารางงานเป็นปฏิทินรายเดือน กดเจาะรายสัปดาห์ · บอร์ดงานแนวตั้ง `/board` · คำสั่งด่วน Ctrl+K · toast/กล่องยืนยันในแอป · ชิ้นงานย้ายไปอยู่ระดับใบ (หลายรุ่น) แล้วรายการทดสอบติ๊กเลือกรุ่น · **CSV ส่งออก 8 แบบ (detail 51 คอลัมน์)**
+- ขั้นถัดไปอื่น (backlog): **สำรอง dev.db อัตโนมัติ** (ยังไม่มี — เสี่ยงสุด), เปิด groundwork equipment/test method, ตั้ง cron แจ้งเตือนจริง, deploy จริง (Cloudflare Tunnel + โดเมนบริษัท) — รวมทั้งหมดใน `docs/โครงสร้างโปรเจค-webapp.md`
 
-## Data Model (สรุป — ฉบับเต็มดู docs/data-model.md)
-4 ตาราง เชื่อมด้วย `regis_no` รูปแบบ `TR-YYMM-###` (เช่น TR-2607-015):
-1. **test_requests** — 1 แถวต่อ 1 งาน: แผนกที่รีเควส, ผู้รีเควส, วันที่ได้ใบรีเควส, ชื่อชิ้นงาน/รุ่น Lamp, part no., จำนวนพาร์ท, วันที่รับพาร์ท, ตำแหน่งเก็บพาร์ท, รายละเอียดเทส/มาตรฐาน, plan เริ่ม/plan จบ, เริ่มจริง/จบจริง, สถานะ, ผู้รับผิดชอบหลัก, ที่เก็บชิ้นงานหลังเสร็จ, remark, ลิงก์โฟลเดอร์งาน
-2. **test_runs** — 1 แถวต่อการเทส 1 ครั้ง (รองรับ retest): regis_no, ครั้งที่, วันเริ่ม/จบ, ผู้รับผิดชอบ loading, ผู้รับผิดชอบเทส, ผลเทส (Pass/Fail/Conditional Pass), ลิงก์ raw data, remark
-3. **reports** — regis_no, สถานะรีพอร์ท, วันที่ส่ง, ที่อยู่ไฟล์, ลิงก์, ผู้จัดทำ, ผู้อนุมัติ
-4. **master_data** — แผนก, รายชื่อทีม, ตำแหน่งจัดเก็บ, ค่าสถานะต่างๆ
+## Data Model (สรุป — ฉบับเต็มดู `webapp/prisma/schema.prisma`)
+เลขงาน `TR-YYMM-###` (ใบ) · `TR-YYMM-###-NN` (รายการทดสอบ) — **โครงสร้าง 3 ชั้น:**
+
+```
+test_requests (ใบรีเควส)   ใครขอ (ชื่อ/อีเมล/เบอร์) · วันที่รับใบ · test_object (ส่งอะไรมา) · purpose (ทำไม) · แผนก · created_by
+   ├─ request_parts        ชิ้นงาน/รุ่น Lamp ที่ส่งมา — 1 ใบมีได้หลายรุ่น (ชื่อรุ่น · part_no · จำนวน)
+   └─ test_items           รายการทดสอบ — 1 ใบมีได้หลายรายการ · แต่ละรายการมี สถานะ/แผน/ผู้รับผิดชอบ/รีพอร์ท/QR ของตัวเอง
+         ↕ (หลาย-ต่อ-หลาย) เลือกว่าทดสอบรุ่นไหนบ้าง — part_name/part_no/qty ใน item เป็น cache ที่สรุปจากรุ่นที่เลือก
+         ├─ test_runs      1 แถวต่อการเทส 1 ครั้ง (รองรับ retest): วันเริ่ม/จบ · ผู้ loading · ผู้เทส · ผล (Pass/Fail/Conditional) · ลิงก์ raw data
+         ├─ reports        สถานะรีพอร์ท · วันที่ส่ง · ที่อยู่ไฟล์ · ลิงก์ · ผู้จัดทำ · ผู้อนุมัติ
+         ├─ status_logs / location_logs   audit trail (changed_by มาจาก session)
+         └─ notifications  แจ้งเตือนงานเลย/ใกล้กำหนด/เปลี่ยนสถานะ/ใบใหม่เข้าคิว
+```
+
+**master data:** `Department` (มี sla_days) · `Member` (รายชื่อทีม) · `PartLocation` · `FinishedLocation`
+**ผู้ใช้:** `users` (username/bcrypt · role ADMIN/ENGINEER/REQUESTER/VIEWER · ผูก department สำหรับ requester, member สำหรับ engineer)
+**groundwork ยังไม่ wire UI:** `equipment` · `test_methods`
+**ไฟล์แนบ:** `attachments` เก็บ metadata — ไฟล์จริงอยู่ที่ `webapp/uploads/`, raw data ก้อนใหญ่เก็บเป็นลิงก์/พาธเท่านั้น
 
 ## สถานะงาน (workflow — ห้ามเปลี่ยนชื่อโดยไม่อัปเดตทุกที่)
 `1-รับใบรีเควส → 2-รอรับพาร์ท → 3-รับพาร์ทแล้ว/รอคิวเทส → 4-กำลังเทส → 5-เทสเสร็จ → 6-กำลังทำรีพอร์ท → 7-ส่งรีพอร์ทแล้ว → 8-ปิดงาน` (+ `9-Hold`, `10-Cancel` ได้ทุกจุด)
