@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   getAllReportItems,
   availableYears,
@@ -43,6 +44,9 @@ export default async function ReportsPage({
 
   return (
     <div className="flex flex-col gap-6">
+      <Link href="/admin" className="text-[13px] text-muted hover:text-ink w-fit">
+        ← กลับไปหน้าผู้ดูแลระบบ
+      </Link>
       <div>
         <h1 className="text-[22px] font-medium text-ink sm:text-[26px]">รายงาน / ส่งออกข้อมูล</h1>
         <p className="text-[14px] text-muted mt-0.5">

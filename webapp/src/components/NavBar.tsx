@@ -8,19 +8,14 @@ import Icon from "@/components/ui/Icon";
 import CommandPalette from "@/components/CommandPalette";
 import type { UserRole } from "@/generated/prisma/client";
 
+// เมนูหลักเหลือเฉพาะที่ใช้ทุกวัน — เครื่องมือของผู้ดูแลย้ายไปรวมที่ /admin
 const baseLinks = [
   { href: "/", label: "หน้าหลัก" },
   { href: "/board", label: "บอร์ดงาน" },
   { href: "/requests", label: "รายการงาน" },
   { href: "/schedule", label: "ตารางงาน" },
-  { href: "/analytics", label: "วิเคราะห์" },
-  { href: "/reports", label: "รายงาน" },
 ];
-// เมนูเฉพาะ admin (หน้าเหล่านี้ถูก guard ไว้อยู่แล้ว — ซ่อนเมนูให้ UX ไม่งง)
-const adminLinks = [
-  { href: "/planning", label: "วางแผน" },
-  { href: "/settings", label: "ตั้งค่าระบบ" },
-];
+const adminLinks = [{ href: "/admin", label: "ผู้ดูแลระบบ" }];
 
 export default function NavBar({
   unreadCount = 0,

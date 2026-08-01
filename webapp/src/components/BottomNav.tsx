@@ -41,13 +41,8 @@ export default function BottomNav({
   const moreLinks: { href: string; label: string; icon: IconName }[] = [
     { href: "/board", label: "บอร์ดงาน", icon: "board" },
     { href: "/schedule", label: "ตารางงาน", icon: "calendar" },
-    { href: "/analytics", label: "วิเคราะห์", icon: "chart" },
-    { href: "/reports", label: "รายงาน", icon: "file" },
     ...(canPlanAndManage(user?.role)
-      ? ([
-          { href: "/planning", label: "คิวรอวางแผน", icon: "clock" },
-          { href: "/settings", label: "ตั้งค่าระบบ", icon: "settings" },
-        ] as const)
+      ? ([{ href: "/admin", label: "ผู้ดูแลระบบ", icon: "settings" }] as const)
       : []),
   ];
 

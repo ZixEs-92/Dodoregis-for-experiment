@@ -93,15 +93,23 @@ export default function WeeklySchedule({
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center gap-3">
         <div>
-          <h1 className="text-[22px] font-medium text-ink sm:text-[26px]">ตารางงานรายสัปดาห์</h1>
+          <h1 className="text-[22px] font-medium text-ink sm:text-[26px]">ตารางงาน — รายสัปดาห์</h1>
           <p className="text-[14px] text-muted mt-0.5">
             ใครมีงานอะไรต้องทำ · {weekLabel} · {totalWeek} งานในสัปดาห์นี้
           </p>
         </div>
-        <div className="ml-auto inline-flex rounded-lg border border-hairline bg-canvas p-0.5">
-          <NavBtn href={`/schedule?week=${offset - 1}`} label="‹ ก่อนหน้า" />
-          <NavBtn href="/schedule" label="สัปดาห์นี้" active={offset === 0} />
-          <NavBtn href={`/schedule?week=${offset + 1}`} label="ถัดไป ›" />
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <span className="inline-flex rounded-lg border border-hairline bg-canvas p-0.5">
+            <NavBtn href="/schedule" label="เดือน" />
+            <span className="rounded-md bg-ink px-3 py-1.5 text-[13px] font-medium text-white">
+              สัปดาห์
+            </span>
+          </span>
+          <span className="inline-flex rounded-lg border border-hairline bg-canvas p-0.5">
+            <NavBtn href={`/schedule?view=week&week=${offset - 1}`} label="‹ ก่อนหน้า" />
+            <NavBtn href="/schedule?view=week" label="สัปดาห์นี้" active={offset === 0} />
+            <NavBtn href={`/schedule?view=week&week=${offset + 1}`} label="ถัดไป ›" />
+          </span>
         </div>
       </div>
 

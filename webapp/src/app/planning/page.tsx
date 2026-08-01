@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { isUrgent } from "@/lib/workflow";
@@ -50,6 +51,9 @@ export default async function PlanningPage() {
 
   return (
     <div className="flex flex-col gap-5 pb-10">
+      <Link href="/admin" className="text-[13px] text-muted hover:text-ink w-fit">
+        ← กลับไปหน้าผู้ดูแลระบบ
+      </Link>
       <div>
         <h1 className="text-[22px] font-medium text-ink sm:text-[26px]">
           คิวรอวางแผน {rows.length > 0 && <span className="text-coral">({rows.length})</span>}

@@ -14,6 +14,8 @@ import { requestRollup, RequestPhase } from "@/lib/rollup";
 import { getCurrentUser } from "@/lib/auth";
 import RequesterHome from "@/components/home/RequesterHome";
 import MyWorkBlock from "@/components/home/MyWorkBlock";
+import DepartmentBreakdown from "@/components/home/DepartmentBreakdown";
+import Icon from "@/components/ui/Icon";
 
 export const dynamic = "force-dynamic";
 
@@ -132,8 +134,10 @@ async function TeamDashboard({
           </p>
         </div>
         <div className="ml-auto hidden gap-2 sm:flex">
-          <Link href="/schedule" className="btn-primary btn-sm">ตารางงานรายสัปดาห์ →</Link>
-          <Link href="/analytics" className="btn-secondary btn-sm">วิเคราะห์ / KPI →</Link>
+          <Link href="/schedule" className="btn-primary btn-sm">ตารางงาน →</Link>
+          {isAdmin && (
+            <Link href="/admin" className="btn-secondary btn-sm">เครื่องมือผู้ดูแล →</Link>
+          )}
         </div>
       </div>
 
@@ -145,7 +149,7 @@ async function TeamDashboard({
           href="/planning"
           className="card p-4 flex flex-wrap items-center gap-3 border-mustard bg-yellow-soft hover:opacity-90 transition-opacity"
         >
-          <span className="text-[20px] leading-none">⏳</span>
+          <Icon name="clock" className="text-mustard-deep" />
           <span className="text-[14px] font-medium text-ink">
             มีงานรอวางแผน {unassignedCount} รายการ — มอบหมายผู้รับผิดชอบ + ลงวันที่
           </span>
@@ -153,12 +157,18 @@ async function TeamDashboard({
         </Link>
       )}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {/* การ์ดสรุป: วิศวกรไม่ต้องเห็น % ส่งตรงแผน ซึ่งเป็นตัวชี้วัดของหัวหน้า */}
+      <div className={`grid grid-cols-2 gap-3 ${isAdmin ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
         <SummaryCard label="งานทั้งหมด (item)" value={total} sub="ทุกสถานะ" className="bg-surface-dark text-white" href="/requests" />
         <SummaryCard label="เลยกำหนด plan จบ" value={overdue.length} sub={overdue.length > 0 ? `เกิน 7 วัน ${ov3} · 4–7 วัน ${ov2} · 1–3 วัน ${ov1}` : "ต้องติดตามด่วน"} className="bg-coral text-white" href="/requests?overdue=1" />
         <SummaryCard label="ครบกำหนดใน 7 วัน" value={dueSoon.length} sub="เตรียมตัวล่วงหน้า" className="bg-mustard text-ink" href="/requests?duesoon=1" />
-        <SummaryCard label="ส่งตรง plan" value={onTimePct === null ? "—" : `${onTimePct}%`} sub={`${onTimeD} งานที่ส่งเสร็จ`} className="bg-forest text-white" href="/analytics" />
+        {isAdmin && (
+          <SummaryCard label="ส่งตรง plan" value={onTimePct === null ? "—" : `${onTimePct}%`} sub={`${onTimeD} งานที่ส่งเสร็จ`} className="bg-forest text-white" href="/analytics" />
+        )}
       </div>
+
+      {/* งานแยกตามแผนก — กดเข้าไปดูของแผนกนั้นได้ */}
+      <DepartmentBreakdown />
 
       <Link href="/requests" className="card p-4 flex flex-wrap items-center gap-x-5 gap-y-2 hover:border-border-strong transition-colors">
         <span className="text-[13px] font-medium text-ink">ภาพรวมใบรีเควส ({requestCount})</span>
@@ -168,8 +178,8 @@ async function TeamDashboard({
         <span className="ml-auto text-[12px] text-link">ดูรายการ →</span>
       </Link>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-        <section className="card p-5 lg:col-span-3">
+      <div className={`grid grid-cols-1 gap-4 ${isAdmin ? "lg:grid-cols-5" : ""}`}>
+        <section className={`card p-5 ${isAdmin ? "lg:col-span-3" : ""}`}>
           <h2 className="text-[15px] font-medium text-ink mb-4">จำนวน item ตามสถานะ</h2>
           <div className="flex flex-col gap-2.5">
             {ALL_STATUSES.map((s) => {
@@ -189,6 +199,8 @@ async function TeamDashboard({
           </div>
         </section>
 
+        {/* Workload รายคนเป็นข้อมูลบริหารทีม — แสดงเฉพาะผู้ดูแล */}
+        {isAdmin && (
         <section className="card p-5 lg:col-span-2">
           <h2 className="text-[15px] font-medium text-ink mb-1">Workload ต่อคน</h2>
           <p className="text-[12px] text-muted mb-4">item ที่ยังไม่ปิด</p>
@@ -211,6 +223,7 @@ async function TeamDashboard({
             </ul>
           )}
         </section>
+        )}
       </div>
 
       <LoadingBoard items={loadItems} />

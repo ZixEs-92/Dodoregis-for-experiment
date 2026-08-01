@@ -50,7 +50,8 @@ function fmtDate(iso: string | null): string {
 }
 
 export default function GroupedRequests({ items }: { items: ItemRow[] }) {
-  const [mode, setMode] = useState<ViewMode>("status");
+  // ค่าเริ่มต้น = จัดกลุ่มตามใบรีเควส (ตรงกับวิธีที่คนทำงานพูดถึงงานจริง)
+  const [mode, setMode] = useState<ViewMode>("request");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const router = useRouter();

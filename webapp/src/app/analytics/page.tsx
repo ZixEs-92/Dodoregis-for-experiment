@@ -158,6 +158,9 @@ export default async function AnalyticsPage({
 
   return (
     <div className="flex flex-col gap-6">
+      <Link href="/admin" className="text-[13px] text-muted hover:text-ink w-fit">
+        ← กลับไปหน้าผู้ดูแลระบบ
+      </Link>
       <div className="flex flex-wrap items-center gap-3">
         <div>
           <h1 className="text-[22px] font-medium text-ink sm:text-[26px]">วิเคราะห์ / KPI</h1>

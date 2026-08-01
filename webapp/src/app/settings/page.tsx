@@ -55,6 +55,9 @@ export default async function SettingsHubPage() {
 
   return (
     <div className="flex flex-col gap-5 pb-10">
+      <Link href="/admin" className="text-[13px] text-muted hover:text-ink w-fit">
+        ← กลับไปหน้าผู้ดูแลระบบ
+      </Link>
       <div>
         <h1 className="text-[22px] font-medium text-ink sm:text-[26px]">ตั้งค่าระบบ</h1>
         <p className="text-[14px] text-muted mt-0.5">
