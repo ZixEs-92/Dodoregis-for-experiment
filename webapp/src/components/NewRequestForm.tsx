@@ -2,8 +2,9 @@
 
 import { useRef, useState, useSyncExternalStore } from "react";
 import { useActionState } from "react";
-import { createRequestWithItem, ActionResult } from "@/app/actions";
+import { createRequest, ActionResult } from "@/app/actions";
 import { FormErrors } from "@/components/FormMessages";
+import Icon from "@/components/ui/Icon";
 
 const DRAFT_KEY = "dodoregis:new-request-draft";
 const DRAFT_EVENT = "dodoregis:draft-changed";
@@ -28,8 +29,35 @@ function writeDraft(value: string | null) {
 
 type Option = { id: number; name: string };
 
+type PartRow = { name: string; partNo: string; qty: string };
+type ItemRow = {
+  testName: string;
+  testDetail: string;
+  partIdx: number[];
+  remark: string;
+  planStart: string;
+  planEnd: string;
+  ownerId: string;
+};
+
+const emptyPart = (): PartRow => ({ name: "", partNo: "", qty: "" });
+const emptyItem = (): ItemRow => ({
+  testName: "",
+  testDetail: "",
+  partIdx: [],
+  remark: "",
+  planStart: "",
+  planEnd: "",
+  ownerId: "",
+});
+
 const initialState: ActionResult = { ok: true, errors: [] };
 
+/**
+ * ฟอร์มลงใบรีเควส
+ * โครงสร้าง: ใบรีเควส → ชิ้นงาน/รุ่น Lamp (เพิ่มได้หลายรุ่น) → รายการทดสอบ (เพิ่มได้หลายรายการ)
+ * แต่ละรายการทดสอบติ๊กเลือกว่าจะทดสอบรุ่นไหนบ้าง
+ */
 export default function NewRequestForm({
   departments,
   members,
@@ -45,14 +73,51 @@ export default function NewRequestForm({
   /** ซ่อนส่วนวางแผน (owner + plan วันที่) สำหรับ requester — admin เป็นคนลงให้ทีหลัง */
   showPlanning?: boolean;
 }) {
-  const [state, formAction, pending] = useActionState(createRequestWithItem, initialState);
+  const [state, formAction, pending] = useActionState(createRequest, initialState);
   const formRef = useRef<HTMLFormElement | null>(null);
   const [dismissed, setDismissed] = useState(false);
 
-  // เก็บร่างไว้ในเครื่อง — พิมพ์รายละเอียดยาว ๆ แล้วปิดแท็บ/เน็ตหลุด ไม่หาย
+  const [parts, setParts] = useState<PartRow[]>([emptyPart()]);
+  const [items, setItems] = useState<ItemRow[]>([]);
+
   const storedDraft = useSyncExternalStore(subscribeDraft, readDraft, () => null);
   const draftFound = storedDraft !== null && !dismissed;
 
+  // ── ชิ้นงาน ──
+  const setPart = (i: number, patch: Partial<PartRow>) =>
+    setParts((rows) => rows.map((r, n) => (n === i ? { ...r, ...patch } : r)));
+  const addPart = () => setParts((rows) => [...rows, emptyPart()]);
+  const removePart = (i: number) => {
+    setParts((rows) => (rows.length === 1 ? rows : rows.filter((_, n) => n !== i)));
+    // เอาชิ้นงานที่ถูกลบออกจากรายการทดสอบ แล้วเลื่อน index ที่อยู่หลังมันลง 1
+    setItems((rows) =>
+      rows.map((r) => ({
+        ...r,
+        partIdx: r.partIdx.filter((p) => p !== i).map((p) => (p > i ? p - 1 : p)),
+      })),
+    );
+  };
+
+  // ── รายการทดสอบ ──
+  const setItem = (i: number, patch: Partial<ItemRow>) =>
+    setItems((rows) => rows.map((r, n) => (n === i ? { ...r, ...patch } : r)));
+  const addItem = () => setItems((rows) => [...rows, emptyItem()]);
+  const removeItem = (i: number) => setItems((rows) => rows.filter((_, n) => n !== i));
+  const togglePartOnItem = (itemIndex: number, partIndex: number) =>
+    setItems((rows) =>
+      rows.map((r, n) =>
+        n === itemIndex
+          ? {
+              ...r,
+              partIdx: r.partIdx.includes(partIndex)
+                ? r.partIdx.filter((p) => p !== partIndex)
+                : [...r.partIdx, partIndex].sort((a, b) => a - b),
+            }
+          : r,
+      ),
+    );
+
+  // ── ร่าง ──
   function saveDraft() {
     const form = formRef.current;
     if (!form) return;
@@ -60,6 +125,8 @@ export default function NewRequestForm({
     for (const [k, v] of new FormData(form).entries()) {
       if (typeof v === "string" && v.trim()) data[k] = v;
     }
+    data.parts_json = JSON.stringify(parts);
+    data.items_json = JSON.stringify(items);
     if (Object.keys(data).length > 0) writeDraft(JSON.stringify(data));
   }
 
@@ -69,10 +136,23 @@ export default function NewRequestForm({
     try {
       const data = JSON.parse(storedDraft) as Record<string, string>;
       for (const [k, v] of Object.entries(data)) {
+        if (k === "parts_json" || k === "items_json") continue;
         const field = form.elements.namedItem(k);
-        if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement || field instanceof HTMLSelectElement) {
+        if (
+          field instanceof HTMLInputElement ||
+          field instanceof HTMLTextAreaElement ||
+          field instanceof HTMLSelectElement
+        ) {
           field.value = v;
         }
+      }
+      if (data.parts_json) {
+        const p = JSON.parse(data.parts_json) as PartRow[];
+        if (Array.isArray(p) && p.length > 0) setParts(p);
+      }
+      if (data.items_json) {
+        const i = JSON.parse(data.items_json) as ItemRow[];
+        if (Array.isArray(i)) setItems(i);
       }
       setDismissed(true);
     } catch {
@@ -85,16 +165,22 @@ export default function NewRequestForm({
     setDismissed(true);
   }
 
+  const namedParts = parts.filter((p) => p.name.trim());
+
   return (
     <form
       ref={formRef}
       action={(fd) => {
-        writeDraft(null); // ส่งแล้วไม่ต้องเก็บร่างอีก
+        writeDraft(null);
         return formAction(fd);
       }}
       onBlur={saveDraft}
       className="card p-5 flex flex-col gap-5 sm:p-6"
     >
+      {/* ส่งโครงสร้างซ้อนเป็น JSON — server อ่านแล้วสร้างชิ้นงาน + รายการทดสอบให้ */}
+      <input type="hidden" name="parts_json" value={JSON.stringify(parts)} readOnly />
+      <input type="hidden" name="items_json" value={JSON.stringify(items)} readOnly />
+
       <FormErrors errors={state.errors} />
 
       {draftFound && (
@@ -139,18 +225,15 @@ export default function NewRequestForm({
         </Field>
       </FieldGroup>
 
-      <FieldGroup title="งานที่ขอทดสอบ (ระดับใบรีเควส)">
+      <FieldGroup title="งานที่ขอทดสอบ">
         <Field label="Test object — ส่งอะไรมาทดสอบ" required className="sm:col-span-2">
           <input
             type="text"
             name="test_object"
             required
             className="input"
-            placeholder="เช่น ไฟหน้า P703 LED ตัวอย่างจากล็อตผลิตแรก 5 ชิ้น"
+            placeholder="เช่น ไฟหน้า P703 ตัวอย่างจากล็อตผลิตแรก"
           />
-          <span className="text-[11px] text-muted">
-            ภาพรวมของทั้งใบ — รายละเอียดการทดสอบแต่ละหัวข้อไปกรอกเป็นรายการย่อยด้านล่าง
-          </span>
         </Field>
         <Field label="ที่มา / วัตถุประสงค์ที่ขอทดสอบ" className="sm:col-span-2">
           <textarea
@@ -165,74 +248,236 @@ export default function NewRequestForm({
         </Field>
       </FieldGroup>
 
-      <details className="rounded-lg bg-surface-soft border border-hairline p-4">
-        <summary className="cursor-pointer select-none text-[14px] font-medium text-ink">
-          เพิ่มรายการทดสอบรายการแรก (ไม่บังคับ)
-        </summary>
-        <div className="mt-4 flex flex-col gap-5">
-        <p className="text-[13px] text-muted">
-          <span className="chip bg-ink text-white mr-2">รายการที่ 1</span>
-          1 ใบรีเควสมีได้หลายรายการทดสอบ — จะกรอกตอนนี้ หรือให้ทีมแลปช่วยแตกรายการให้ทีหลังก็ได้
-        </p>
-
-        <FieldGroup title="ชิ้นงานที่ทดสอบ" nested>
-          <Field label="ชื่อการทดสอบ (item test name)" className="sm:col-span-2">
-            <input type="text" name="test_name" placeholder="เช่น Photometric Test (KST)" className="input" />
-          </Field>
-          {/* ไม่ใส่ required ที่นี่ เพราะทั้งส่วนนี้เป็นตัวเลือก — server ตรวจให้เมื่อเริ่มกรอกแล้วเท่านั้น */}
-          <Field label="ชื่อชิ้นงาน / รุ่น Lamp" className="sm:col-span-2">
-            <input type="text" name="part_name" className="input" />
-          </Field>
-          <Field label="Part No.">
-            <input type="text" name="part_no" className="input" />
-          </Field>
-          <Field label="จำนวนพาร์ท">
-            <input type="number" name="qty" min={0} className="input" />
-          </Field>
-          <Field label="รายละเอียดเทส / มาตรฐานอ้างอิง" className="sm:col-span-2">
-            <textarea name="test_detail" rows={3} className="input" />
-          </Field>
-        </FieldGroup>
-
-        {showPlanning ? (
-          <FieldGroup title="แผนงานของ item นี้" nested>
-            <Field label="Plan เริ่มเทส">
-              <input type="date" name="plan_start" className="input" />
-            </Field>
-            <Field label="Plan จบ">
-              <input type="date" name="plan_end" className="input" />
-            </Field>
-            <Field label="ผู้รับผิดชอบหลัก" className="sm:col-span-2">
-              <select name="owner" defaultValue="" className="input">
-                <option value="">- ยังไม่มอบหมาย (วางแผนภายหลัง) -</option>
-                {members.map((m) => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Remark ของ item" className="sm:col-span-2">
-              <textarea name="remark" rows={2} placeholder='พิมพ์ "make รีพอร์ตเลย" หากเป็นงานด่วน' className="input" />
-            </Field>
-          </FieldGroup>
-        ) : (
-          <FieldGroup title="เพิ่มเติม" nested>
-            <Field label="Remark ของ item" className="sm:col-span-2">
-              <textarea name="remark" rows={2} placeholder='พิมพ์ "make รีพอร์ตเลย" หากเป็นงานด่วน' className="input" />
-            </Field>
-            <p className="text-[12px] text-muted sm:col-span-2">
-              ผู้รับผิดชอบ + วันที่แผนทดสอบ ทีมแลปจะเป็นคนวางแผนให้หลังรับงาน
-            </p>
-          </FieldGroup>
-        )}
+      {/* ── ชิ้นงาน / รุ่น Lamp (หลายรุ่นได้) ── */}
+      <section className="flex flex-col gap-3 pb-5 border-b border-hairline">
+        <div>
+          <h2 className="text-[13px] font-medium text-muted uppercase tracking-wide">
+            ชิ้นงาน / รุ่น Lamp ที่ส่งมา <span className="text-coral">*</span>
+          </h2>
+          <p className="text-[12px] text-muted mt-0.5">
+            ใส่ได้หลายรุ่น — เดี๋ยวรายการทดสอบด้านล่างจะให้เลือกว่าทดสอบรุ่นไหนบ้าง
+          </p>
         </div>
-      </details>
+
+        <div className="flex flex-col gap-2">
+          {parts.map((p, i) => (
+            <div
+              key={i}
+              className="grid grid-cols-1 gap-2 rounded-lg border border-hairline p-3 sm:grid-cols-[1fr_10rem_6rem_auto] sm:items-end"
+            >
+              <label className="flex flex-col gap-1">
+                <span className="label-text">ชื่อชิ้นงาน / รุ่น Lamp</span>
+                <input
+                  type="text"
+                  value={p.name}
+                  onChange={(e) => setPart(i, { name: e.target.value })}
+                  className="input"
+                  placeholder="เช่น P703 LED HL HG"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="label-text">Part No.</span>
+                <input
+                  type="text"
+                  value={p.partNo}
+                  onChange={(e) => setPart(i, { partNo: e.target.value })}
+                  className="input"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="label-text">จำนวน</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={p.qty}
+                  onChange={(e) => setPart(i, { qty: e.target.value })}
+                  className="input"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => removePart(i)}
+                disabled={parts.length === 1}
+                aria-label={`ลบชิ้นงานรายการที่ ${i + 1}`}
+                className="btn-secondary btn-sm text-coral disabled:opacity-30"
+              >
+                ลบ
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <button type="button" onClick={addPart} className="btn-secondary btn-sm w-fit">
+          <Icon name="plus" size={16} />
+          เพิ่มรุ่น Lamp
+        </button>
+      </section>
+
+      {/* ── รายการทดสอบ (หลายรายการได้) ── */}
+      <section className="flex flex-col gap-3">
+        <div>
+          <h2 className="text-[13px] font-medium text-muted uppercase tracking-wide">
+            รายการทดสอบ (ไม่บังคับ)
+          </h2>
+          <p className="text-[12px] text-muted mt-0.5">
+            1 รายการ = 1 หัวข้อทดสอบ ที่มีแผน/สถานะ/รีพอร์ทของตัวเอง —
+            จะกรอกตอนนี้ หรือให้ทีมแลปช่วยแตกรายการให้ทีหลังก็ได้
+          </p>
+        </div>
+
+        {items.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-hairline px-3 py-4 text-center text-[13px] text-muted">
+            ยังไม่มีรายการทดสอบ — บันทึกใบไว้ก่อนได้ แล้วค่อยเพิ่มภายหลัง
+          </p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {items.map((it, i) => (
+              <div key={i} className="flex flex-col gap-3 rounded-lg border border-hairline bg-surface-soft p-3">
+                <div className="flex items-center gap-2">
+                  <span className="chip bg-ink text-white">รายการที่ {i + 1}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeItem(i)}
+                    className="ml-auto text-[12px] text-coral hover:underline"
+                  >
+                    ลบรายการนี้
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <label className="flex flex-col gap-1 sm:col-span-2">
+                    <span className="label-text">ชื่อการทดสอบ</span>
+                    <input
+                      type="text"
+                      value={it.testName}
+                      onChange={(e) => setItem(i, { testName: e.target.value })}
+                      className="input"
+                      placeholder="เช่น Photometric Test (KST)"
+                    />
+                  </label>
+
+                  <label className="flex flex-col gap-1 sm:col-span-2">
+                    <span className="label-text">
+                      รายละเอียดเทส / มาตรฐานอ้างอิง <span className="text-coral">*</span>
+                    </span>
+                    <textarea
+                      value={it.testDetail}
+                      onChange={(e) => setItem(i, { testDetail: e.target.value })}
+                      rows={3}
+                      className="input"
+                    />
+                  </label>
+
+                  <div className="flex flex-col gap-1.5 sm:col-span-2">
+                    <span className="label-text">
+                      ทดสอบชิ้นงานรุ่นไหนบ้าง <span className="text-coral">*</span>
+                    </span>
+                    {namedParts.length === 0 ? (
+                      <p className="text-[12px] text-mustard-deep">
+                        กรอกชื่อชิ้นงาน/รุ่น Lamp ด้านบนก่อน แล้วจะเลือกได้ที่นี่
+                      </p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {parts.map((p, pi) =>
+                          p.name.trim() ? (
+                            <label
+                              key={pi}
+                              className={`inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 text-[13px] transition-colors ${
+                                it.partIdx.includes(pi)
+                                  ? "border-ink bg-ink text-white"
+                                  : "border-hairline bg-canvas text-body hover:bg-surface-soft"
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={it.partIdx.includes(pi)}
+                                onChange={() => togglePartOnItem(i, pi)}
+                                className="sr-only"
+                              />
+                              {it.partIdx.includes(pi) && <Icon name="check" size={14} />}
+                              {p.name}
+                              {p.partNo && (
+                                <span className={it.partIdx.includes(pi) ? "text-white/70" : "text-muted"}>
+                                  ({p.partNo})
+                                </span>
+                              )}
+                            </label>
+                          ) : null,
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {showPlanning && (
+                    <>
+                      <label className="flex flex-col gap-1">
+                        <span className="label-text">Plan เริ่มเทส</span>
+                        <input
+                          type="date"
+                          value={it.planStart}
+                          onChange={(e) => setItem(i, { planStart: e.target.value })}
+                          className="input"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span className="label-text">Plan จบ</span>
+                        <input
+                          type="date"
+                          value={it.planEnd}
+                          onChange={(e) => setItem(i, { planEnd: e.target.value })}
+                          className="input"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1 sm:col-span-2">
+                        <span className="label-text">ผู้รับผิดชอบหลัก</span>
+                        <select
+                          value={it.ownerId}
+                          onChange={(e) => setItem(i, { ownerId: e.target.value })}
+                          className="input"
+                        >
+                          <option value="">- ยังไม่มอบหมาย (วางแผนภายหลัง) -</option>
+                          {members.map((m) => (
+                            <option key={m.id} value={m.id}>{m.name}</option>
+                          ))}
+                        </select>
+                      </label>
+                    </>
+                  )}
+
+                  <label className="flex flex-col gap-1 sm:col-span-2">
+                    <span className="label-text">Remark ของรายการนี้</span>
+                    <textarea
+                      value={it.remark}
+                      onChange={(e) => setItem(i, { remark: e.target.value })}
+                      rows={2}
+                      placeholder='พิมพ์ "make รีพอร์ตเลย" หากเป็นงานด่วน'
+                      className="input"
+                    />
+                  </label>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <button type="button" onClick={addItem} className="btn-secondary btn-sm w-fit">
+          <Icon name="plus" size={16} />
+          เพิ่มรายการทดสอบ
+        </button>
+
+        {!showPlanning && items.length > 0 && (
+          <p className="text-[12px] text-muted">
+            ผู้รับผิดชอบ + วันที่แผนทดสอบ ทีมแลปจะเป็นคนวางแผนให้หลังรับงาน
+          </p>
+        )}
+      </section>
 
       <div className="flex flex-col gap-2">
         <button type="submit" disabled={pending} className="btn-primary w-fit">
           {pending ? "กำลังบันทึก..." : "บันทึกใบรีเควส"}
         </button>
         <span className="text-[12px] text-muted">
-          ระบบจะออกเลขใบให้อัตโนมัติ · เพิ่มรายการทดสอบภายหลังได้ในหน้าใบรีเควส
+          ระบบจะออกเลขใบให้อัตโนมัติ · เพิ่มชิ้นงานและรายการทดสอบภายหลังได้ในหน้าใบรีเควส
         </span>
       </div>
     </form>
@@ -241,15 +486,13 @@ export default function NewRequestForm({
 
 function FieldGroup({
   title,
-  nested,
   children,
 }: {
   title: string;
-  nested?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <div className={`flex flex-col gap-4 ${nested ? "" : "pb-5 border-b border-hairline last:border-0 last:pb-0"}`}>
+    <div className="flex flex-col gap-4 pb-5 border-b border-hairline">
       <h2 className="text-[13px] font-medium text-muted uppercase tracking-wide">{title}</h2>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">{children}</div>
     </div>

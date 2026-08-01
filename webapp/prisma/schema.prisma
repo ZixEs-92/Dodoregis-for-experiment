@@ -133,9 +133,31 @@ model TestRequest {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   items       TestItem[]
+  parts       RequestPart[]
   attachments Attachment[]
 
   @@map("test_requests")
+}
+
+// ── ชิ้นงาน/รุ่น Lamp ที่ส่งมาในใบรีเควส (1 ใบมีได้หลายรุ่น) ──
+// รายการทดสอบ (TestItem) เลือกได้ว่าจะเทสรุ่นไหนบ้าง → ความสัมพันธ์หลาย-ต่อ-หลาย
+
+model RequestPart {
+  id      Int         @id @default(autoincrement())
+  regisNo String      @map("regis_no")
+  request TestRequest @relation(fields: [regisNo], references: [regisNo], onDelete: Cascade)
+
+  name      String // ชื่อชิ้นงาน / รุ่น Lamp
+  partNo    String? @map("part_no")
+  qty       Int?
+  sortOrder Int     @default(0) @map("sort_order")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  items TestItem[] // รายการทดสอบที่เลือกชิ้นงานนี้
+
+  @@index([regisNo])
+  @@map("request_parts")
 }
 
 // ── item (1 แถว = 1 ชิ้นงานที่ต้องทดสอบ มี plan/status/report ของตัวเอง) ──
@@ -147,6 +169,10 @@ model TestItem {
   itemNo   Int    @map("item_no") // 1..N ภายในใบรีเควส
   itemCode String @unique @map("item_code") // TR-YYMM-###-NN ใช้เป็น QR/URL/ชื่อไฟล์
 
+  // ชิ้นงานที่รายการทดสอบนี้ครอบคลุม — เลือกจาก RequestPart ของใบเดียวกัน
+  parts RequestPart[]
+
+  // สรุปจากชิ้นงานที่เลือก (cache ไว้ให้ list/label/report/CSV ใช้ได้เร็วโดยไม่ต้อง join)
   partName String  @map("part_name")
   partNo   String? @map("part_no")
   qty      Int?

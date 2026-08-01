@@ -58,8 +58,10 @@ export default async function ItemDetailPage({
         include: {
           requestDept: true,
           items: { select: { status: true, planEnd: true, remark: true } },
+          parts: { orderBy: [{ sortOrder: "asc" }, { id: "asc" }] },
         },
       },
+      parts: { select: { id: true } },
       owner: true,
       partLocation: true,
       finishedPartLocation: true,
@@ -201,9 +203,7 @@ export default async function ItemDetailPage({
         action={updateBound}
         defaults={{
           testName: item.testName ?? "",
-          partName: item.partName,
-          partNo: item.partNo ?? "",
-          qty: item.qty,
+          partIds: item.parts.map((p) => p.id),
           partReceivedDate: toInputDate(item.partReceivedDate),
           partLocationId: item.partLocationId,
           testDetail: item.testDetail,
@@ -219,6 +219,12 @@ export default async function ItemDetailPage({
         members={members.map((m) => ({ id: m.id, name: m.name }))}
         partLocations={partLocations.map((p) => ({ id: p.id, name: p.name }))}
         finishedLocations={finishedLocations.map((f) => ({ id: f.id, name: f.name }))}
+        parts={item.request.parts.map((p) => ({
+          id: p.id,
+          name: p.name,
+          partNo: p.partNo,
+          qty: p.qty,
+        }))}
       />
     </section>
   );

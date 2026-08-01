@@ -88,30 +88,61 @@ const KIND_VALUES: string[] = [
 
 // ── ตรวจฟิลด์ระดับ item ──
 
-function validateItemFields(fd: FormData): string[] {
-  const errors: string[] = [];
-  if (!str(fd, "part_name")) errors.push("กรุณากรอกชื่อชิ้นงาน/รุ่น Lamp");
-  if (!str(fd, "test_detail")) errors.push("กรุณากรอกรายละเอียดเทส/มาตรฐานอ้างอิง");
-  // หมายเหตุ: ผู้รับผิดชอบไม่บังคับแล้ว (Phase 3c) — งานที่ยังไม่มอบหมายจะเข้าคิวรอ admin วางแผน
-  return errors;
+// ── ชิ้นงาน (RequestPart) ────────────────────────────────────
+
+export type PartInput = { name: string; partNo?: string | null; qty?: number | null };
+export type ItemInput = {
+  testName?: string | null;
+  testDetail: string;
+  /** ตำแหน่งของชิ้นงานใน parts ที่ส่งมาด้วยกัน (ตอนสร้างใบใหม่) */
+  partIdx?: number[];
+  /** id ของชิ้นงานที่มีอยู่แล้ว (ตอนเพิ่ม item ในใบเดิม) */
+  partIds?: number[];
+  remark?: string | null;
+  planStart?: string | null;
+  planEnd?: string | null;
+  ownerId?: number | null;
+};
+
+type PartLike = { name: string; partNo: string | null; qty: number | null };
+
+/** สรุปชิ้นงานที่เลือก → เก็บลง item เป็น cache ให้ list/label/report ใช้ได้เร็ว */
+function summarizeParts(parts: PartLike[]) {
+  return {
+    partName: parts.map((p) => p.name).join(" · ") || "—",
+    partNo: parts.map((p) => p.partNo).filter(Boolean).join(" · ") || null,
+    qty: parts.reduce((n, p) => n + (p.qty ?? 0), 0) || null,
+  };
 }
 
-/** ผู้ใช้เริ่มกรอกรายการทดสอบแรกหรือยัง (ใบรีเควสสร้างโดยไม่มี item ก็ได้) */
-function hasItemInput(fd: FormData): boolean {
-  return Boolean(
-    str(fd, "part_name") ||
-      str(fd, "test_detail") ||
-      str(fd, "test_name") ||
-      str(fd, "part_no"),
-  );
+/** อ่าน JSON จากฟอร์ม (ฟิลด์ที่ซ่อนไว้) — คืน [] ถ้าพัง */
+function jsonField<T>(fd: FormData, key: string): T[] {
+  const raw = fd.get(key);
+  if (typeof raw !== "string" || !raw.trim()) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as T[]) : [];
+  } catch {
+    return [];
+  }
 }
 
+function toDateOrNull(v: string | null | undefined): Date | null {
+  return v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(`${v}T00:00:00+07:00`) : null;
+}
+
+/** id ชิ้นงานที่ติ๊กเลือกไว้ในฟอร์ม (checkbox ชื่อ part_ids) */
+function partIdsFromForm(fd: FormData): number[] {
+  return fd
+    .getAll("part_ids")
+    .map((v) => Number(v))
+    .filter((n) => Number.isInteger(n) && n > 0);
+}
+
+/** ฟิลด์ของ item ที่ไม่เกี่ยวกับชิ้นงาน (ชิ้นงานมาจากตาราง RequestPart แล้ว) */
 function itemDataFromForm(fd: FormData) {
   return {
-    partName: str(fd, "part_name")!,
-    partNo: str(fd, "part_no"),
     testName: str(fd, "test_name"),
-    qty: num(fd, "qty"),
     partReceivedDate: date(fd, "part_received_date"),
     partLocationId: num(fd, "part_location"),
     testDetail: str(fd, "test_detail")!,
@@ -126,9 +157,9 @@ function itemDataFromForm(fd: FormData) {
   };
 }
 
-// ── สร้างใบรีเควสใหม่ (พร้อม item แรก) ──────────────────────
+// ── สร้างใบรีเควสใหม่ (หลายชิ้นงาน + หลายรายการทดสอบ) ───────
 
-export async function createRequestWithItem(
+export async function createRequest(
   _prev: ActionResult,
   formData: FormData
 ): Promise<ActionResult> {
@@ -142,21 +173,41 @@ export async function createRequestWithItem(
     return { ok: false, errors: ["บัญชีของคุณยังไม่ผูกกับแผนก — แจ้งผู้ดูแลระบบให้ตั้งค่าก่อน"] };
   }
   const deptId = isRequester ? user.departmentId! : num(formData, "request_dept");
+  const canPlan = !isRequester;
 
-  // รายการทดสอบ (item) ไม่บังคับตอนสร้างใบ — เพิ่มทีหลังได้ทั้งผู้ขอและ admin
-  const withItem = hasItemInput(formData);
+  const parts = jsonField<PartInput>(formData, "parts_json")
+    .map((p) => ({
+      name: (p.name ?? "").trim(),
+      partNo: p.partNo?.trim() || null,
+      qty: Number.isFinite(Number(p.qty)) && Number(p.qty) > 0 ? Number(p.qty) : null,
+    }))
+    .filter((p) => p.name);
+
+  const itemInputs = jsonField<ItemInput>(formData, "items_json")
+    .map((i) => ({
+      testName: i.testName?.trim() || null,
+      testDetail: (i.testDetail ?? "").trim(),
+      partIdx: Array.isArray(i.partIdx) ? i.partIdx.filter((n) => Number.isInteger(n)) : [],
+      remark: i.remark?.trim() || null,
+      planStart: canPlan ? toDateOrNull(i.planStart) : null,
+      planEnd: canPlan ? toDateOrNull(i.planEnd) : null,
+      ownerId: canPlan && Number.isInteger(Number(i.ownerId)) && Number(i.ownerId) > 0 ? Number(i.ownerId) : null,
+    }))
+    .filter((i) => i.testDetail || i.testName || i.partIdx.length > 0);
 
   const errors: string[] = [];
   if (!deptId) errors.push("กรุณาเลือกแผนกที่รีเควส");
   if (!str(formData, "requester")) errors.push("กรุณากรอกชื่อผู้ขอทดสอบ");
   if (!str(formData, "test_object")) errors.push("กรุณากรอกสิ่งที่ส่งมาทดสอบ (test object)");
   if (!date(formData, "request_date")) errors.push("กรุณากรอกวันที่ได้ใบรีเควส");
-  if (withItem) errors.push(...validateItemFields(formData));
+  if (parts.length === 0) errors.push("กรุณาเพิ่มชิ้นงาน/รุ่น Lamp อย่างน้อย 1 รายการ");
+  itemInputs.forEach((i, n) => {
+    if (!i.testDetail) errors.push(`รายการทดสอบที่ ${n + 1}: กรุณากรอกรายละเอียดเทส/มาตรฐานอ้างอิง`);
+    if (i.partIdx.length === 0) errors.push(`รายการทดสอบที่ ${n + 1}: กรุณาเลือกชิ้นงานที่จะทดสอบ`);
+  });
   if (errors.length > 0) return { ok: false, errors };
 
   const requestDate = date(formData, "request_date")!;
-  const itemData = itemDataFromForm(formData);
-  const createNote = itemData.ownerId ? "สร้าง item" : "สร้าง item (รอวางแผน/มอบหมาย)";
 
   let createdRegisNo: string | null = null;
   for (let attempt = 0; attempt < 4 && !createdRegisNo; attempt++) {
@@ -175,20 +226,9 @@ export async function createRequestWithItem(
           requestDate,
           remark: str(formData, "request_remark"),
           createdById: user.id,
-          ...(withItem
-            ? {
-                items: {
-                  create: {
-                    itemNo: 1,
-                    itemCode: buildItemCode(regisNo, 1),
-                    ...itemData,
-                    statusLogs: {
-                      create: { toStatus: "S1_RECEIVED", note: createNote, changedBy: user.displayName },
-                    },
-                  },
-                },
-              }
-            : {}),
+          parts: {
+            create: parts.map((p, idx) => ({ ...p, sortOrder: idx })),
+          },
         },
       });
       createdRegisNo = regisNo;
@@ -196,23 +236,59 @@ export async function createRequestWithItem(
       if (!isUniqueViolation(e) || attempt === 3) throw e;
     }
   }
+  if (!createdRegisNo) return { ok: false, errors: ["ออกเลขใบรีเควสไม่สำเร็จ ลองใหม่อีกครั้ง"] };
 
-  // แจ้งเตือน admin: มีใบใหม่เข้ามา (ทั้งกรณีมี item รอวางแผน และกรณีที่ยังไม่มีรายการทดสอบ)
-  if (createdRegisNo) {
+  // สร้างรายการทดสอบ พร้อมผูกชิ้นงานที่เลือก
+  const createdParts = await prisma.requestPart.findMany({
+    where: { regisNo: createdRegisNo },
+    orderBy: { sortOrder: "asc" },
+  });
+  for (const [n, input] of itemInputs.entries()) {
+    const chosen = input.partIdx
+      .map((idx) => createdParts[idx])
+      .filter((p): p is (typeof createdParts)[number] => Boolean(p));
+    if (chosen.length === 0) continue;
+
+    await prisma.testItem.create({
+      data: {
+        regisNo: createdRegisNo,
+        itemNo: n + 1,
+        itemCode: buildItemCode(createdRegisNo, n + 1),
+        testName: input.testName,
+        testDetail: input.testDetail,
+        remark: input.remark,
+        planStart: input.planStart,
+        planEnd: input.planEnd,
+        ownerId: input.ownerId,
+        ...summarizeParts(chosen),
+        parts: { connect: chosen.map((p) => ({ id: p.id })) },
+        statusLogs: {
+          create: {
+            toStatus: "S1_RECEIVED",
+            note: input.ownerId ? "สร้างรายการทดสอบ" : "สร้างรายการทดสอบ (รอวางแผน/มอบหมาย)",
+            changedBy: user.displayName,
+          },
+        },
+      },
+    });
+  }
+
+  // แจ้งเตือน admin: มีใบใหม่เข้ามา (ทั้งกรณีมีรายการรอวางแผน และกรณีที่ยังไม่มีรายการทดสอบ)
+  {
     const created = await prisma.testRequest.findUnique({
       where: { regisNo: createdRegisNo },
-      include: { requestDept: true, items: { orderBy: { itemNo: "asc" }, take: 1 } },
+      include: { requestDept: true, items: { orderBy: { itemNo: "asc" } } },
     });
     const firstItem = created?.items[0];
-    const needsNotice = !withItem || !itemData.ownerId;
-    if (created && needsNotice) {
+    const anyUnassigned = created?.items.some((i) => !i.ownerId) ?? false;
+    if (created && (created.items.length === 0 || anyUnassigned)) {
       await notifyNewRequest({
         itemId: firstItem?.id ?? null,
         regisNo: created.regisNo,
-        subject: firstItem?.partName ?? created.testObject ?? "—",
+        subject: created.testObject ?? firstItem?.partName ?? "—",
         deptName: created.requestDept.name,
         requester: created.requester,
-        needsItems: !withItem,
+        needsItems: created.items.length === 0,
       }).catch(() => {});
     }
   }
@@ -242,10 +318,18 @@ export async function addItem(
     }
   }
 
-  const errors = validateItemFields(formData);
+  const partIds = partIdsFromForm(formData);
+  const errors: string[] = [];
+  if (!str(formData, "test_detail")) errors.push("กรุณากรอกรายละเอียดเทส/มาตรฐานอ้างอิง");
+  if (partIds.length === 0) errors.push("กรุณาเลือกชิ้นงานที่จะทดสอบอย่างน้อย 1 รายการ");
   if (errors.length > 0) return { ok: false, errors };
+
+  // ชิ้นงานต้องเป็นของใบนี้เท่านั้น
+  const chosen = await prisma.requestPart.findMany({ where: { id: { in: partIds }, regisNo } });
+  if (chosen.length === 0) return { ok: false, errors: ["ไม่พบชิ้นงานที่เลือกในใบรีเควสนี้"] };
+
   const itemData = itemDataFromForm(formData);
-  const createNote = itemData.ownerId ? "สร้าง item" : "สร้าง item (รอวางแผน/มอบหมาย)";
+  const createNote = itemData.ownerId ? "สร้างรายการทดสอบ" : "สร้างรายการทดสอบ (รอวางแผน/มอบหมาย)";
 
   for (let attempt = 0; attempt < 4; attempt++) {
     const itemNo = await nextItemNo(regisNo);
@@ -256,6 +340,8 @@ export async function addItem(
           itemNo,
           itemCode: buildItemCode(regisNo, itemNo),
           ...itemData,
+          ...summarizeParts(chosen),
+          parts: { connect: chosen.map((p) => ({ id: p.id })) },
           statusLogs: {
             create: { toStatus: "S1_RECEIVED", note: createNote, changedBy: user.displayName },
           },
@@ -273,6 +359,72 @@ export async function addItem(
   return { ok: true, errors: [], saved: true };
 }
 
+// ── ชิ้นงาน/รุ่น Lamp ในใบรีเควส ─────────────────────────────
+
+/** ผู้ขอแก้ได้เฉพาะใบของแผนกตัวเอง */
+async function assertCanEditRequest(regisNo: string): Promise<string | null> {
+  const denied = await ensureCreateRequest();
+  if (denied) return denied;
+  const user = (await getCurrentUser())!;
+  if (user.role === "REQUESTER") {
+    const req = await prisma.testRequest.findUnique({ where: { regisNo } });
+    if (!req || req.requestDeptId !== user.departmentId) {
+      return "แก้ไขได้เฉพาะใบรีเควสของแผนกตัวเอง";
+    }
+  }
+  return null;
+}
+
+export async function addRequestPart(
+  regisNo: string,
+  _prev: ActionResult,
+  formData: FormData
+): Promise<ActionResult> {
+  const denied = await assertCanEditRequest(regisNo);
+  if (denied) return { ok: false, errors: [denied] };
+
+  const name = str(formData, "name");
+  if (!name) return { ok: false, errors: ["กรุณากรอกชื่อชิ้นงาน / รุ่น Lamp"] };
+
+  const count = await prisma.requestPart.count({ where: { regisNo } });
+  await prisma.requestPart.create({
+    data: {
+      regisNo,
+      name,
+      partNo: str(formData, "part_no"),
+      qty: num(formData, "qty"),
+      sortOrder: count,
+    },
+  });
+
+  revalidatePath(`/requests/${regisNo}`);
+  return { ok: true, errors: [], saved: true };
+}
+
+export async function deleteRequestPart(partId: number): Promise<ActionResult> {
+  const part = await prisma.requestPart.findUnique({
+    where: { id: partId },
+    include: { items: { select: { itemCode: true } } },
+  });
+  if (!part) return { ok: false, errors: ["ไม่พบชิ้นงานนี้"] };
+
+  const denied = await assertCanEditRequest(part.regisNo);
+  if (denied) return { ok: false, errors: [denied] };
+
+  if (part.items.length > 0) {
+    return {
+      ok: false,
+      errors: [
+        `ลบไม่ได้ — มีรายการทดสอบใช้ชิ้นงานนี้อยู่ (${part.items.map((i) => i.itemCode).join(", ")})`,
+      ],
+    };
+  }
+
+  await prisma.requestPart.delete({ where: { id: partId } });
+  revalidatePath(`/requests/${part.regisNo}`);
+  return { ok: true, errors: [], saved: true };
+}
+
 // ── แก้ไขข้อมูล item ────────────────────────────────────────
 
 export async function updateItemDetails(
@@ -282,15 +434,25 @@ export async function updateItemDetails(
 ): Promise<ActionResult> {
   const denied = await ensureEditTests();
   if (denied) return { ok: false, errors: [denied] };
-  const errors = validateItemFields(formData);
-  if (errors.length > 0) return { ok: false, errors };
 
   const current = await prisma.testItem.findUniqueOrThrow({
     where: { itemCode },
-    include: { reports: true, partLocation: true, finishedPartLocation: true },
+    include: { reports: true, partLocation: true, finishedPartLocation: true, parts: true },
   });
 
-  const data = itemDataFromForm(formData);
+  const partIds = partIdsFromForm(formData);
+  const errors: string[] = [];
+  if (!str(formData, "test_detail")) errors.push("กรุณากรอกรายละเอียดเทส/มาตรฐานอ้างอิง");
+  if (partIds.length === 0) errors.push("กรุณาเลือกชิ้นงานที่จะทดสอบอย่างน้อย 1 รายการ");
+  if (errors.length > 0) return { ok: false, errors };
+
+  // ชิ้นงานต้องเป็นของใบเดียวกับ item นี้
+  const chosen = await prisma.requestPart.findMany({
+    where: { id: { in: partIds }, regisNo: current.regisNo },
+  });
+  if (chosen.length === 0) return { ok: false, errors: ["ไม่พบชิ้นงานที่เลือกในใบรีเควสนี้"] };
+
+  const data = { ...itemDataFromForm(formData), ...summarizeParts(chosen) };
 
   // กันแก้ข้อมูลจนผิดกติกาของสถานะปัจจุบัน
   const invariantErrors = validateStatusRequirements(current.status, {
@@ -336,7 +498,10 @@ export async function updateItemDetails(
   }
 
   const editor = await getCurrentUser();
-  await prisma.testItem.update({ where: { itemCode }, data });
+  await prisma.testItem.update({
+    where: { itemCode },
+    data: { ...data, parts: { set: chosen.map((p) => ({ id: p.id })) } },
+  });
   if (locLogs.length > 0) {
     await prisma.locationLog.createMany({
       data: locLogs.map((l) => ({

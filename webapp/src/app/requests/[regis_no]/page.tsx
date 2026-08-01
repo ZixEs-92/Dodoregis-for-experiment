@@ -8,6 +8,7 @@ import { requestRollup, PHASE_LABEL, PHASE_COLOR } from "@/lib/rollup";
 import { testTitle } from "@/lib/format";
 import StatusBadge from "@/components/StatusBadge";
 import AddItemForm from "@/components/AddItemForm";
+import RequestParts from "@/components/RequestParts";
 import AttachmentsSection from "@/components/AttachmentsSection";
 import { addItem, uploadAttachment } from "@/app/actions";
 import { getCurrentUser } from "@/lib/auth";
@@ -34,7 +35,11 @@ export default async function RequestOverviewPage({
     where: { regisNo },
     include: {
       requestDept: true,
-      items: { include: { owner: true }, orderBy: { itemNo: "asc" } },
+      items: { include: { owner: true, parts: true }, orderBy: { itemNo: "asc" } },
+      parts: {
+        include: { items: { select: { itemCode: true } } },
+        orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+      },
       attachments: { orderBy: { id: "desc" } },
     },
   });
@@ -143,6 +148,19 @@ export default async function RequestOverviewPage({
         </div>
       </div>
 
+      {/* ชิ้นงาน/รุ่น Lamp ของใบนี้ */}
+      <RequestParts
+        regisNo={regisNo}
+        canEdit={canCreate}
+        parts={request.parts.map((p) => ({
+          id: p.id,
+          name: p.name,
+          partNo: p.partNo,
+          qty: p.qty,
+          usedBy: p.items.map((i) => i.itemCode),
+        }))}
+      />
+
       {/* รายการ item เป็นการ์ด/ปุ่ม */}
       <section className="flex flex-col gap-3">
         <div>
@@ -208,6 +226,12 @@ export default async function RequestOverviewPage({
           <AddItemForm
             action={addItemBound}
             members={members.map((m) => ({ id: m.id, name: m.name }))}
+            parts={request.parts.map((p) => ({
+              id: p.id,
+              name: p.name,
+              partNo: p.partNo,
+              qty: p.qty,
+            }))}
             nextItemNo={nextItemNo}
             showPlanning={canEdit}
           />
