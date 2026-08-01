@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logout } from "@/app/login/actions";
 import { ROLE_LABEL, canCreateRequest, canPlanAndManage } from "@/lib/roles";
+import Icon, { type IconName } from "@/components/ui/Icon";
 import type { UserRole } from "@/generated/prisma/client";
 
 /**
@@ -37,15 +38,16 @@ export default function BottomNav({
   const isOn = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
-  const moreLinks = [
-    { href: "/schedule", label: "ตารางงาน", icon: "🗓" },
-    { href: "/analytics", label: "วิเคราะห์", icon: "📈" },
-    { href: "/reports", label: "รายงาน", icon: "📄" },
+  const moreLinks: { href: string; label: string; icon: IconName }[] = [
+    { href: "/board", label: "บอร์ดงาน", icon: "board" },
+    { href: "/schedule", label: "ตารางงาน", icon: "calendar" },
+    { href: "/analytics", label: "วิเคราะห์", icon: "chart" },
+    { href: "/reports", label: "รายงาน", icon: "file" },
     ...(canPlanAndManage(user?.role)
-      ? [
-          { href: "/planning", label: "คิวรอวางแผน", icon: "⏳" },
-          { href: "/settings", label: "ตั้งค่าระบบ", icon: "⚙️" },
-        ]
+      ? ([
+          { href: "/planning", label: "คิวรอวางแผน", icon: "clock" },
+          { href: "/settings", label: "ตั้งค่าระบบ", icon: "settings" },
+        ] as const)
       : []),
   ];
 
@@ -56,20 +58,16 @@ export default function BottomNav({
         className="fixed inset-x-0 bottom-0 z-40 border-t border-hairline bg-canvas pb-[env(safe-area-inset-bottom)] sm:hidden"
       >
         <div className="grid grid-cols-5">
-          <Tab href="/" label="หน้าหลัก" icon="🏠" on={isOn("/")} />
-          <Tab href="/requests" label="งาน" icon="📋" on={isOn("/requests")} />
+          <Tab href="/" label="หน้าหลัก" icon="home" on={isOn("/")} />
+          <Tab href="/requests" label="งาน" icon="list" on={isOn("/requests")} />
 
           <Link
             href="/scan"
             aria-label="สแกน QR ชิ้นงาน"
             className="flex flex-col items-center justify-center gap-0.5 py-1.5"
           >
-            <span
-              className={`grid h-11 w-11 place-items-center rounded-full text-[20px] transition-colors ${
-                isOn("/scan") ? "bg-ink text-white" : "bg-ink text-white"
-              }`}
-            >
-              📷
+            <span className="grid h-11 w-11 place-items-center rounded-full bg-ink text-white">
+              <Icon name="scan" size={22} />
             </span>
             <span className="text-[10px] font-medium text-ink">สแกน</span>
           </Link>
@@ -77,7 +75,7 @@ export default function BottomNav({
           <Tab
             href="/notifications"
             label="แจ้งเตือน"
-            icon="🔔"
+            icon="bell"
             on={isOn("/notifications")}
             badge={unreadCount}
           />
@@ -88,7 +86,7 @@ export default function BottomNav({
             aria-expanded={sheetOpen}
             className="flex min-h-14 flex-col items-center justify-center gap-0.5 text-muted"
           >
-            <span className="text-[18px] leading-none">☰</span>
+            <Icon name="menu" size={18} />
             <span className="text-[10px] font-medium">เพิ่มเติม</span>
           </button>
         </div>
@@ -139,7 +137,7 @@ export default function BottomNav({
                     onClick={closeSheet}
                     className="flex min-h-12 items-center gap-3 rounded-lg px-2 text-[15px] text-ink hover:bg-surface-soft"
                   >
-                    <span className="w-6 text-center text-[17px]">{l.icon}</span>
+                    <Icon name={l.icon} className="text-muted" />
                     {l.label}
                   </Link>
                 </li>
@@ -152,7 +150,7 @@ export default function BottomNav({
                   type="submit"
                   className="flex min-h-12 w-full items-center gap-3 rounded-lg px-2 text-[15px] text-coral hover:bg-coral-soft"
                 >
-                  <span className="w-6 text-center text-[17px]">⏻</span>
+                  <Icon name="logout" />
                   ออกจากระบบ
                 </button>
               </form>
@@ -173,7 +171,7 @@ function Tab({
 }: {
   href: string;
   label: string;
-  icon: string;
+  icon: IconName;
   on: boolean;
   badge?: number;
 }) {
@@ -185,7 +183,7 @@ function Tab({
         on ? "text-ink" : "text-muted"
       }`}
     >
-      <span className="text-[18px] leading-none">{icon}</span>
+      <Icon name={icon} size={18} />
       <span className="text-[10px] font-medium">{label}</span>
       {badge > 0 && (
         <span className="absolute right-1/2 top-1.5 grid h-[17px] min-w-[17px] translate-x-4 place-items-center rounded-full bg-coral px-1 text-[10px] font-semibold text-white">

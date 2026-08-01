@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { lineConfig } from "@/lib/line";
+import Icon, { type IconName } from "@/components/ui/Icon";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "ตั้งค่าระบบ — Dodoregis" };
@@ -20,24 +21,31 @@ export default async function SettingsHubPage() {
   const line = lineConfig();
   const lineReady = line.hasToken && line.hasDestination;
 
-  const sections = [
+  const sections: {
+    href: string;
+    icon: IconName;
+    title: string;
+    desc: string;
+    stat: string;
+    warn?: boolean;
+  }[] = [
     {
       href: "/master",
-      icon: "🗂",
+      icon: "database",
       title: "ข้อมูลระบบ",
       desc: "แผนก · รายชื่อทีม · ตำแหน่งจัดเก็บ · เป้า SLA รายแผนก",
       stat: `${deptCount} แผนก · ${memberCount} คน · ${partLocCount + finishedLocCount} ตำแหน่งเก็บ`,
     },
     {
       href: "/settings/users",
-      icon: "👥",
+      icon: "users",
       title: "ผู้ใช้และสิทธิ์",
       desc: "สร้างบัญชี · กำหนดบทบาท · ตั้งรหัสใหม่ · เปิด-ปิดการใช้งาน",
       stat: `${userCount} บัญชีที่ใช้งานอยู่`,
     },
     {
       href: "/settings/line",
-      icon: "💬",
+      icon: "message",
       title: "แจ้งเตือนผ่าน LINE",
       desc: "ผูก LINE Official Account เพื่อส่งแจ้งเตือนงานใกล้/เลยกำหนด",
       stat: lineReady ? "ตั้งค่าแล้ว พร้อมส่ง" : "ยังไม่ได้ตั้งค่า",
@@ -61,7 +69,7 @@ export default async function SettingsHubPage() {
             href={s.href}
             className="card flex flex-col gap-2 p-5 transition-colors hover:bg-surface-soft"
           >
-            <span className="text-[26px] leading-none">{s.icon}</span>
+            <Icon name={s.icon} size={26} className="text-ink" />
             <span className="text-[16px] font-medium text-ink">{s.title} →</span>
             <span className="text-[13px] text-muted">{s.desc}</span>
             <span

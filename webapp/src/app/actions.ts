@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { generateRegisNo, buildItemCode, nextItemNo } from "@/lib/regisNo";
 import { validateStatusRequirements } from "@/lib/workflow";
-import { notifyStatusChange } from "@/lib/notifications";
+import { notifyStatusChange, notifyNewRequest } from "@/lib/notifications";
 import { sendLinePush, LineResult } from "@/lib/line";
 import {
   storeUploadedFile,
@@ -175,7 +175,25 @@ export async function createRequestWithItem(
     }
   }
 
+  // งานที่ยังไม่มีผู้รับผิดชอบ = เข้าคิวรอวางแผน → แจ้งเตือนให้ admin รู้ทันที
+  if (createdRegisNo && !itemData.ownerId) {
+    const created = await prisma.testItem.findFirst({
+      where: { regisNo: createdRegisNo, itemNo: 1 },
+      include: { request: { include: { requestDept: true } } },
+    });
+    if (created) {
+      await notifyNewRequest(
+        created.id,
+        created.itemCode,
+        created.partName,
+        created.request.requestDept.name,
+        created.request.requester,
+      ).catch(() => {});
+    }
+  }
+
   revalidatePath("/requests");
+  revalidatePath("/planning");
   revalidatePath("/");
   redirect(`/requests/${createdRegisNo}`);
 }
@@ -509,6 +527,61 @@ export async function planItem(
   revalidatePath("/requests");
   revalidatePath("/");
   return { ok: true, errors: [], saved: true };
+}
+
+/** วางแผนหลายรายการพร้อมกัน (มอบหมายคนเดียวกัน + วันที่ชุดเดียวกัน) */
+export async function planItemsBulk(
+  itemCodes: string[],
+  ownerId: number,
+  planStartRaw: string | null,
+  planEndRaw: string | null
+): Promise<ActionResult & { count?: number }> {
+  const denied = await ensurePlanManage();
+  if (denied) return { ok: false, errors: [denied] };
+  if (itemCodes.length === 0) return { ok: false, errors: ["ยังไม่ได้เลือกรายการ"] };
+
+  const planner = (await getCurrentUser())!;
+  const owner = await prisma.member.findUnique({ where: { id: ownerId } });
+  if (!owner) return { ok: false, errors: ["ไม่พบผู้รับผิดชอบที่เลือก"] };
+
+  const toDate = (v: string | null) =>
+    v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(`${v}T00:00:00+07:00`) : null;
+  const planStart = toDate(planStartRaw);
+  const planEnd = toDate(planEndRaw);
+  if (planStart && planEnd && planStart.getTime() > planEnd.getTime()) {
+    return { ok: false, errors: ["Plan เริ่มต้องไม่เกิน Plan จบ"] };
+  }
+
+  const items = await prisma.testItem.findMany({ where: { itemCode: { in: itemCodes } } });
+  await prisma.testItem.updateMany({
+    where: { itemCode: { in: itemCodes } },
+    data: {
+      ownerId,
+      ...(planStart ? { planStart } : {}),
+      ...(planEnd ? { planEnd } : {}),
+    },
+  });
+
+  const fmt = (d: Date | null) =>
+    d ? d.toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok" }) : "?";
+  const note = `วางแผน: มอบหมาย ${owner.name}${
+    planStart || planEnd ? ` · แผน ${fmt(planStart)} – ${fmt(planEnd)}` : ""
+  }`;
+  await prisma.statusLog.createMany({
+    data: items.map((it) => ({
+      itemId: it.id,
+      fromStatus: it.status,
+      toStatus: it.status,
+      note,
+      changedBy: planner.displayName,
+    })),
+  });
+
+  revalidatePath("/planning");
+  revalidatePath("/requests");
+  revalidatePath("/board");
+  revalidatePath("/");
+  return { ok: true, errors: [], saved: true, count: items.length };
 }
 
 // ── test runs ───────────────────────────────────────────────

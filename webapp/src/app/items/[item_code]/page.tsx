@@ -18,6 +18,7 @@ import { testTitle, isHttpUrl } from "@/lib/format";
 import { getCurrentUser } from "@/lib/auth";
 import { canEditTests } from "@/lib/roles";
 import CopyButton from "@/components/CopyButton";
+import Icon from "@/components/ui/Icon";
 import StatusBadge from "@/components/StatusBadge";
 import StatusStepper from "@/components/StatusStepper";
 import ItemDetailsForm from "@/components/ItemDetailsForm";
@@ -480,7 +481,8 @@ export default async function ItemDetailPage({
         href="/scan"
         className="fixed right-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 inline-flex min-h-11 items-center gap-2 rounded-full bg-ink px-4 text-[13px] font-medium text-white shadow-lg sm:hidden"
       >
-        📷 สแกนชิ้นต่อไป
+        <Icon name="scan" size={16} />
+        สแกนชิ้นต่อไป
       </Link>
     </div>
   );

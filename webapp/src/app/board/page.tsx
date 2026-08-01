@@ -1,0 +1,72 @@
+import Link from "next/link";
+import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth";
+import { canEditTests } from "@/lib/roles";
+import { isOverdue, isUrgent } from "@/lib/workflow";
+import { testTitle } from "@/lib/format";
+import { toDisplayDate } from "@/lib/date";
+import KanbanBoard, { BoardItem } from "@/components/KanbanBoard";
+import type { Prisma } from "@/generated/prisma/client";
+
+export const dynamic = "force-dynamic";
+export const metadata = { title: "บอร์ดงาน — Dodoregis" };
+
+export default async function BoardPage() {
+  const user = await getCurrentUser();
+  const canEdit = canEditTests(user?.role ?? null);
+
+  // requester เห็นเฉพาะแผนกตัวเอง เหมือนหน้ารายการงาน
+  const deptScoped = user?.role === "REQUESTER" && user.departmentId != null;
+  const where: Prisma.TestItemWhereInput = {
+    status: { notIn: ["S10_CANCEL"] },
+    ...(deptScoped ? { request: { requestDeptId: user!.departmentId! } } : {}),
+  };
+
+  const items = await prisma.testItem.findMany({
+    where,
+    include: { owner: true, request: { include: { requestDept: true } } },
+    orderBy: [{ planEnd: "asc" }, { itemCode: "asc" }],
+  });
+
+  const cards: BoardItem[] = items.map((it) => ({
+    itemCode: it.itemCode,
+    title: testTitle(it.testName, it.testDetail),
+    partName: it.partName,
+    ownerName: it.owner?.name ?? null,
+    dept: it.request.requestDept.name,
+    planEnd: it.planEnd ? toDisplayDate(it.planEnd) : null,
+    status: it.status,
+    overdue: isOverdue(it.planEnd, it.status),
+    urgent: isUrgent(it.remark),
+  }));
+
+  const onHold = cards.filter((c) => c.status === "S9_HOLD");
+
+  return (
+    <div className="flex flex-col gap-5 pb-10">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-[22px] font-medium text-ink sm:text-[26px]">บอร์ดงาน</h1>
+          <p className="text-[14px] text-muted mt-0.5">
+            {canEdit
+              ? "ลากการ์ดข้ามคอลัมน์เพื่อเปลี่ยนสถานะ (บนมือถือใช้เมนูในการ์ด)"
+              : "ดูความคืบหน้าของงานทั้งหมดเรียงตามขั้นตอน"}
+            {onHold.length > 0 && ` · พักงานอยู่ ${onHold.length} รายการ`}
+          </p>
+        </div>
+        <Link href="/requests" className="btn-secondary btn-sm">
+          ดูเป็นรายการ →
+        </Link>
+      </div>
+
+      {cards.length === 0 ? (
+        <div className="card empty-state">
+          <p className="text-[15px] font-medium text-ink">ยังไม่มีงานในระบบ</p>
+          <p className="text-[13px] text-muted">เมื่อมีการลงทะเบียนงาน การ์ดจะมาเรียงที่นี่</p>
+        </div>
+      ) : (
+        <KanbanBoard items={cards} canEdit={canEdit} />
+      )}
+    </div>
+  );
+}

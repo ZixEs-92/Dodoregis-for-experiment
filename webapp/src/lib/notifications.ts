@@ -80,6 +80,25 @@ export async function notifyStatusChange(
   });
 }
 
+/** แจ้งเตือนตอนแผนกลงทะเบียนงานใหม่เข้ามา — ให้ admin รู้โดยไม่ต้องรอเปิดแดชบอร์ด */
+export async function notifyNewRequest(
+  itemId: number,
+  itemCode: string,
+  partName: string,
+  deptName: string,
+  requester: string
+): Promise<void> {
+  await prisma.notification.create({
+    data: {
+      kind: "NEW_REQUEST",
+      level: "WARNING",
+      itemId,
+      dedupeKey: `NEW_REQUEST:${itemId}`,
+      message: `งานใหม่รอวางแผน: ${itemCode} · ${partName} · จาก ${deptName} (${requester})`,
+    },
+  });
+}
+
 export async function getUnreadCount(): Promise<number> {
   return prisma.notification.count({ where: { readAt: null } });
 }

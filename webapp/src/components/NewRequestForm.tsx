@@ -1,8 +1,30 @@
 "use client";
 
+import { useRef, useState, useSyncExternalStore } from "react";
 import { useActionState } from "react";
 import { createRequestWithItem, ActionResult } from "@/app/actions";
 import { FormErrors } from "@/components/FormMessages";
+
+const DRAFT_KEY = "dodoregis:new-request-draft";
+const DRAFT_EVENT = "dodoregis:draft-changed";
+
+/** อ่านร่างจาก localStorage แบบ SSR-safe (server snapshot = ไม่มีร่าง) */
+function subscribeDraft(onChange: () => void) {
+  window.addEventListener("storage", onChange);
+  window.addEventListener(DRAFT_EVENT, onChange);
+  return () => {
+    window.removeEventListener("storage", onChange);
+    window.removeEventListener(DRAFT_EVENT, onChange);
+  };
+}
+function readDraft() {
+  return localStorage.getItem(DRAFT_KEY);
+}
+function writeDraft(value: string | null) {
+  if (value === null) localStorage.removeItem(DRAFT_KEY);
+  else localStorage.setItem(DRAFT_KEY, value);
+  window.dispatchEvent(new Event(DRAFT_EVENT));
+}
 
 type Option = { id: number; name: string };
 
@@ -24,10 +46,68 @@ export default function NewRequestForm({
   showPlanning?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(createRequestWithItem, initialState);
+  const formRef = useRef<HTMLFormElement | null>(null);
+  const [dismissed, setDismissed] = useState(false);
+
+  // เก็บร่างไว้ในเครื่อง — พิมพ์รายละเอียดยาว ๆ แล้วปิดแท็บ/เน็ตหลุด ไม่หาย
+  const storedDraft = useSyncExternalStore(subscribeDraft, readDraft, () => null);
+  const draftFound = storedDraft !== null && !dismissed;
+
+  function saveDraft() {
+    const form = formRef.current;
+    if (!form) return;
+    const data: Record<string, string> = {};
+    for (const [k, v] of new FormData(form).entries()) {
+      if (typeof v === "string" && v.trim()) data[k] = v;
+    }
+    if (Object.keys(data).length > 0) writeDraft(JSON.stringify(data));
+  }
+
+  function restoreDraft() {
+    const form = formRef.current;
+    if (!storedDraft || !form) return;
+    try {
+      const data = JSON.parse(storedDraft) as Record<string, string>;
+      for (const [k, v] of Object.entries(data)) {
+        const field = form.elements.namedItem(k);
+        if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement || field instanceof HTMLSelectElement) {
+          field.value = v;
+        }
+      }
+      setDismissed(true);
+    } catch {
+      writeDraft(null);
+    }
+  }
+
+  function discardDraft() {
+    writeDraft(null);
+    setDismissed(true);
+  }
 
   return (
-    <form action={formAction} className="card p-5 flex flex-col gap-5 sm:p-6">
+    <form
+      ref={formRef}
+      action={(fd) => {
+        writeDraft(null); // ส่งแล้วไม่ต้องเก็บร่างอีก
+        return formAction(fd);
+      }}
+      onBlur={saveDraft}
+      className="card p-5 flex flex-col gap-5 sm:p-6"
+    >
       <FormErrors errors={state.errors} />
+
+      {draftFound && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-info-border/30 bg-info-soft px-3.5 py-2.5 text-[13px] text-info">
+          <span className="flex-1">พบร่างที่กรอกค้างไว้ก่อนหน้านี้</span>
+          <button type="button" onClick={restoreDraft} className="font-medium underline">
+            กู้คืนร่าง
+          </button>
+          <button type="button" onClick={discardDraft} className="text-muted underline">
+            ทิ้งร่าง
+          </button>
+        </div>
+      )}
 
       <FieldGroup title="ข้อมูลใบรีเควส">
         {lockedDept ? (

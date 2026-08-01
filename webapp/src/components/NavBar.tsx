@@ -4,12 +4,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logout } from "@/app/login/actions";
 import { ROLE_LABEL, canCreateRequest } from "@/lib/roles";
+import Icon from "@/components/ui/Icon";
+import CommandPalette from "@/components/CommandPalette";
 import type { UserRole } from "@/generated/prisma/client";
 
 const baseLinks = [
   { href: "/", label: "หน้าหลัก" },
-  { href: "/schedule", label: "ตารางงาน" },
+  { href: "/board", label: "บอร์ดงาน" },
   { href: "/requests", label: "รายการงาน" },
+  { href: "/schedule", label: "ตารางงาน" },
   { href: "/analytics", label: "วิเคราะห์" },
   { href: "/reports", label: "รายงาน" },
 ];
@@ -61,6 +64,8 @@ export default function NavBar({
           </nav>
 
           <div className="flex items-center gap-2 shrink-0">
+            <CommandPalette role={user?.role ?? null} />
+
             <Link
               href="/scan"
               aria-label="สแกน QR ชิ้นงาน"
@@ -69,7 +74,7 @@ export default function NavBar({
                 pathname.startsWith("/scan") ? "bg-ink text-white hover:bg-ink" : ""
               }`}
             >
-              <span className="text-[18px] leading-none">📷</span>
+              <Icon name="scan" />
             </Link>
 
             <Link
@@ -80,7 +85,7 @@ export default function NavBar({
                 pathname.startsWith("/notifications") ? "bg-ink text-white hover:bg-ink" : ""
               }`}
             >
-              <span className="text-[18px] leading-none">🔔</span>
+              <Icon name="bell" />
               {unreadCount > 0 && (
                 <span className="absolute top-0.5 right-0.5 grid place-items-center min-w-[18px] h-[18px] px-1 rounded-full bg-coral text-white text-[11px] font-semibold">
                   {unreadCount > 99 ? "99+" : unreadCount}
@@ -90,7 +95,8 @@ export default function NavBar({
 
             {canCreateRequest(user?.role) && (
               <Link href="/requests/new" className="btn-primary btn-sm hidden sm:inline-flex">
-                + ลงงานใหม่
+                <Icon name="plus" size={16} />
+                ลงงานใหม่
               </Link>
             )}
 
@@ -107,7 +113,7 @@ export default function NavBar({
                     title="ออกจากระบบ"
                     className="btn-icon"
                   >
-                    <span className="text-[16px] leading-none">⏻</span>
+                    <Icon name="logout" size={18} />
                   </button>
                 </form>
               </div>

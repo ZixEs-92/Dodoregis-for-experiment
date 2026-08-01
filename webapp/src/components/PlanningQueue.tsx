@@ -1,10 +1,10 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState, useTransition } from "react";
 import Link from "next/link";
-import { planItem, type ActionResult } from "@/app/actions";
+import { planItem, planItemsBulk, type ActionResult } from "@/app/actions";
 import { FormErrors } from "@/components/FormMessages";
-import { useToastOnSaved } from "@/components/ui/Feedback";
+import { useToastOnSaved, useToast } from "@/components/ui/Feedback";
 import StatusBadge from "@/components/StatusBadge";
 import type { RequestStatus } from "@/generated/prisma/client";
 
@@ -47,10 +47,133 @@ export default function PlanningQueue({
     );
   }
 
+  return <Queue items={items} members={members} />;
+}
+
+function Queue({
+  items,
+  members,
+}: {
+  items: QueueItem[];
+  members: (Option & { openCount: number })[];
+}) {
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkOwner, setBulkOwner] = useState("");
+  const [bulkStart, setBulkStart] = useState("");
+  const [bulkEnd, setBulkEnd] = useState("");
+  const [busy, startBulk] = useTransition();
+  const toast = useToast();
+
+  function toggle(code: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(code)) next.delete(code);
+      else next.add(code);
+      return next;
+    });
+  }
+
+  function runBulk() {
+    const ownerId = Number(bulkOwner);
+    if (!ownerId) {
+      toast("เลือกผู้รับผิดชอบก่อน", "error");
+      return;
+    }
+    const codes = [...selected];
+    startBulk(async () => {
+      const res = await planItemsBulk(codes, ownerId, bulkStart || null, bulkEnd || null);
+      if (res.ok) {
+        toast(`วางแผน ${res.count ?? codes.length} รายการแล้ว`, "success");
+        setSelected(new Set());
+        setBulkOwner("");
+        setBulkStart("");
+        setBulkEnd("");
+      } else {
+        toast(res.errors[0] ?? "วางแผนไม่สำเร็จ", "error");
+      }
+    });
+  }
+
+  const allSelected = items.length > 0 && selected.size === items.length;
+
   return (
     <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setSelected(allSelected ? new Set() : new Set(items.map((i) => i.itemCode)))}
+          className="btn-secondary btn-sm"
+        >
+          {allSelected ? "ยกเลิกเลือกทั้งหมด" : `เลือกทั้งหมด (${items.length})`}
+        </button>
+        <span className="text-[13px] text-muted">
+          เลือกหลายรายการเพื่อมอบหมายคนเดียวกันรวดเดียว
+        </span>
+      </div>
+
+      {/* แถบมอบหมายรวม — โผล่เมื่อมีการเลือก */}
+      {selected.size > 0 && (
+        <div className="sticky top-[4.5rem] z-10 flex flex-wrap items-end gap-2 rounded-lg border border-ink bg-ink p-3 text-white">
+          <span className="text-[13px] font-medium">เลือกไว้ {selected.size} รายการ</span>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] text-white/70">ผู้รับผิดชอบ</span>
+            <select
+              value={bulkOwner}
+              onChange={(e) => setBulkOwner(e.target.value)}
+              className="h-11 rounded-lg border border-hairline bg-canvas px-2 text-[13px] text-ink"
+            >
+              <option value="">เลือก…</option>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name} (คิว {m.openCount})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] text-white/70">Plan เริ่ม</span>
+            <input
+              type="date"
+              value={bulkStart}
+              onChange={(e) => setBulkStart(e.target.value)}
+              className="h-11 rounded-lg border border-hairline bg-canvas px-2 text-[13px] text-ink"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] text-white/70">Plan จบ</span>
+            <input
+              type="date"
+              value={bulkEnd}
+              onChange={(e) => setBulkEnd(e.target.value)}
+              className="h-11 rounded-lg border border-hairline bg-canvas px-2 text-[13px] text-ink"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={runBulk}
+            disabled={busy}
+            className="inline-flex min-h-11 items-center rounded-lg bg-canvas px-4 text-[13px] font-medium text-ink hover:bg-surface-soft disabled:opacity-50"
+          >
+            {busy ? "กำลังบันทึก…" : "วางแผนทั้งหมด ✓"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelected(new Set())}
+            className="inline-flex min-h-11 items-center px-2 text-[13px] text-white/80 hover:text-white"
+          >
+            ยกเลิกการเลือก
+          </button>
+        </div>
+      )}
+
       {items.map((it) => (
-        <QueueCard key={it.itemCode} item={it} members={members} />
+        <QueueCard
+          key={it.itemCode}
+          item={it}
+          members={members}
+          selected={selected.has(it.itemCode)}
+          onToggle={() => toggle(it.itemCode)}
+        />
       ))}
     </div>
   );
@@ -59,9 +182,13 @@ export default function PlanningQueue({
 function QueueCard({
   item,
   members,
+  selected,
+  onToggle,
 }: {
   item: QueueItem;
   members: (Option & { openCount: number })[];
+  selected: boolean;
+  onToggle: () => void;
 }) {
   const [state, formAction, pending] = useActionState(
     planItem.bind(null, item.itemCode),
@@ -70,8 +197,20 @@ function QueueCard({
   useToastOnSaved(state, `วางแผน ${item.itemCode} แล้ว`);
 
   return (
-    <section className={`card p-4 sm:p-5 ${item.urgent ? "border-coral/50" : ""}`}>
+    <section
+      className={`card p-4 sm:p-5 ${item.urgent ? "border-coral/50" : ""} ${
+        selected ? "ring-2 ring-info-border" : ""
+      }`}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
+        <label className="flex cursor-pointer items-start gap-3 min-w-0">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggle}
+            aria-label={`เลือก ${item.itemCode}`}
+            className="mt-1 h-5 w-5 shrink-0 accent-[#181d26]"
+          />
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <Link href={`/items/${item.itemCode}`} className="text-[15px] font-semibold text-link hover:underline">
@@ -90,6 +229,7 @@ function QueueCard({
           </p>
           {item.remark && <p className="text-[12px] text-mustard-deep mt-0.5">หมายเหตุ: {item.remark}</p>}
         </div>
+        </label>
       </div>
 
       <form
