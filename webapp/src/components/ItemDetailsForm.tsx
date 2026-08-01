@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { ActionResult } from "@/app/actions";
 import { FormErrors, FormSaved } from "@/components/FormMessages";
+import { useToastOnSaved } from "@/components/ui/Feedback";
 
 type Option = { id: number; name: string };
 
@@ -40,6 +41,7 @@ export default function ItemDetailsForm({
   finishedLocations: Option[];
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
+  useToastOnSaved(state, "บันทึกข้อมูล item แล้ว");
 
   return (
     <form action={formAction} className="flex flex-col gap-5 mt-4">

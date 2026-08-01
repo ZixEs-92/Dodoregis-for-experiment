@@ -8,6 +8,7 @@ import {
   type UserActionResult,
 } from "@/app/settings/users/actions";
 import { FormErrors, FormSaved } from "@/components/FormMessages";
+import { useConfirm, useToast, useToastOnSaved } from "@/components/ui/Feedback";
 import { ROLE_LABEL, ALL_ROLES } from "@/lib/roles";
 import type { UserRole } from "@/generated/prisma/client";
 
@@ -70,6 +71,7 @@ export default function UsersManager({
 function CreateUserCard({ departments, members }: { departments: Option[]; members: Option[] }) {
   const [state, formAction, pending] = useActionState(createUserAccount, initial);
   const [role, setRole] = useState<UserRole>("ENGINEER");
+  useToastOnSaved(state, "สร้างบัญชีผู้ใช้แล้ว");
 
   return (
     <section className="card p-5 sm:p-6">
@@ -144,12 +146,25 @@ function UserRowItem({ user, isSelf }: { user: UserRow; isSelf: boolean }) {
   );
   const [toggling, startToggle] = useTransition();
   const [toggleError, setToggleError] = useState<string | null>(null);
+  const confirm = useConfirm();
+  const toast = useToast();
+  useToastOnSaved(resetState, `ตั้งรหัสผ่านใหม่ให้ ${user.displayName} แล้ว`);
 
-  function onToggle() {
+  async function onToggle() {
     setToggleError(null);
+    if (user.active) {
+      const ok = await confirm({
+        title: `ปิดการใช้งานบัญชี ${user.displayName} ?`,
+        detail: "ผู้ใช้จะเข้าสู่ระบบไม่ได้จนกว่าจะเปิดใช้งานอีกครั้ง ข้อมูลงานเดิมไม่หาย",
+        confirmLabel: "ปิดการใช้งาน",
+        danger: true,
+      });
+      if (!ok) return;
+    }
     startToggle(async () => {
       const r = await setUserActive(user.id, !user.active);
       if (!r.ok) setToggleError(r.errors[0] ?? "เกิดข้อผิดพลาด");
+      else toast(user.active ? "ปิดการใช้งานบัญชีแล้ว" : "เปิดใช้งานบัญชีแล้ว", "success");
     });
   }
 

@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import Link from "next/link";
 import { planItem, type ActionResult } from "@/app/actions";
 import { FormErrors } from "@/components/FormMessages";
+import { useToastOnSaved } from "@/components/ui/Feedback";
 import StatusBadge from "@/components/StatusBadge";
 import type { RequestStatus } from "@/generated/prisma/client";
 
@@ -66,6 +67,7 @@ function QueueCard({
     planItem.bind(null, item.itemCode),
     initial,
   );
+  useToastOnSaved(state, `วางแผน ${item.itemCode} แล้ว`);
 
   return (
     <section className={`card p-4 sm:p-5 ${item.urgent ? "border-coral/50" : ""}`}>

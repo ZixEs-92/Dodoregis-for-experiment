@@ -43,7 +43,7 @@ export default async function UsersPage() {
 
   return (
     <div className="flex flex-col gap-5 pb-10">
-      <Link href="/master" className="text-[13px] text-muted hover:text-ink w-fit">
+      <Link href="/settings" className="text-[13px] text-muted hover:text-ink w-fit">
         ← กลับไปตั้งค่าระบบ
       </Link>
       <div>

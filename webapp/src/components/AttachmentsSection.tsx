@@ -3,6 +3,7 @@
 import { useActionState, useState, useTransition } from "react";
 import { ActionResult, deleteAttachment } from "@/app/actions";
 import { FormErrors } from "@/components/FormMessages";
+import { useConfirm, useToast, useToastOnSaved } from "@/components/ui/Feedback";
 import { ATTACHMENT_KIND_LABEL } from "@/lib/workflow";
 import { humanSize } from "@/lib/format";
 
@@ -44,13 +45,23 @@ export default function AttachmentsSection({
   const [mode, setMode] = useState<"file" | "link">("file");
   const [deletingId, startDelete] = useTransition();
   const [pendingId, setPendingId] = useState<number | null>(null);
+  const confirm = useConfirm();
+  const toast = useToast();
+  useToastOnSaved(state, "เพิ่มไฟล์แนบแล้ว");
 
-  function onDelete(id: number, name: string) {
-    if (!window.confirm(`ลบไฟล์แนบ "${name}" ?`)) return;
+  async function onDelete(id: number, name: string) {
+    const ok = await confirm({
+      title: "ลบไฟล์แนบนี้ ?",
+      detail: name,
+      confirmLabel: "ลบไฟล์",
+      danger: true,
+    });
+    if (!ok) return;
     setPendingId(id);
     startDelete(async () => {
       await deleteAttachment(id);
       setPendingId(null);
+      toast("ลบไฟล์แนบแล้ว", "success");
     });
   }
 

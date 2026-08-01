@@ -12,31 +12,45 @@ import {
 import LoadingBoard, { LoadItem } from "@/components/LoadingBoard";
 import { requestRollup, RequestPhase } from "@/lib/rollup";
 import { getCurrentUser } from "@/lib/auth";
-import { Prisma } from "@/generated/prisma/client";
+import RequesterHome from "@/components/home/RequesterHome";
+import MyWorkBlock from "@/components/home/MyWorkBlock";
 
 export const dynamic = "force-dynamic";
 
-export default async function DashboardPage() {
+export default async function HomePage() {
   // หน้าต่างแรกของแอปคือหน้า login (ประตูทางเข้า) — ยังไม่ล็อกอินให้ไปที่นั่นก่อน
   // (หน้าดูงานอื่น ๆ เช่น /items /requests ยังเปิดให้ดูได้โดยไม่ล็อกอิน สำหรับสแกน QR)
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  const deptScoped = user?.role === "REQUESTER" && user.departmentId != null;
-  const where: Prisma.TestItemWhereInput = deptScoped
-    ? { request: { requestDeptId: user!.departmentId! } }
-    : {};
 
+  // หน้าแรกต่างกันตามบทบาท — คนส่งงานไม่ควรต้องเจอ KPI ภายในของทีมแลป
+  if (user.role === "REQUESTER") {
+    return (
+      <RequesterHome
+        departmentId={user.departmentId}
+        departmentName={user.department?.name ?? null}
+      />
+    );
+  }
+
+  return <TeamDashboard isAdmin={user.role === "ADMIN"} memberId={user.memberId} />;
+}
+
+async function TeamDashboard({
+  isAdmin,
+  memberId,
+}: {
+  isAdmin: boolean;
+  memberId: number | null;
+}) {
   const items = await prisma.testItem.findMany({
-    where,
     include: {
       owner: true,
       testRuns: { include: { loadingOwner: true } },
       reports: true,
     },
   });
-  const requestCount = await prisma.testRequest.count({
-    where: deptScoped ? { requestDeptId: user!.departmentId! } : {},
-  });
+  const requestCount = await prisma.testRequest.count();
 
   const total = items.length;
   const overdue = items.filter((i) => isOverdue(i.planEnd, i.status));
@@ -110,19 +124,23 @@ export default async function DashboardPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center gap-3">
         <div>
-          <h1 className="text-[22px] font-medium text-ink sm:text-[26px]">แดชบอร์ด</h1>
+          <h1 className="text-[22px] font-medium text-ink sm:text-[26px]">
+            {isAdmin ? "ภาพรวมทั้งแลป" : "หน้าหลัก"}
+          </h1>
           <p className="text-[14px] text-muted mt-0.5">
             ภาพรวมงานทดสอบ (นับเป็นราย item) · {requestCount} ใบรีเควส
-            {deptScoped && <span className="text-info"> · เฉพาะแผนก {user!.department!.name}</span>}
           </p>
         </div>
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto hidden gap-2 sm:flex">
           <Link href="/schedule" className="btn-primary btn-sm">ตารางงานรายสัปดาห์ →</Link>
           <Link href="/analytics" className="btn-secondary btn-sm">วิเคราะห์ / KPI →</Link>
         </div>
       </div>
 
-      {user.role === "ADMIN" && unassignedCount > 0 && (
+      {/* วิศวกร: งานของตัวเองต้องเป็นสิ่งแรกที่เห็น ไม่ต้องไปกรองเอง */}
+      {!isAdmin && <MyWorkBlock memberId={memberId} />}
+
+      {isAdmin && unassignedCount > 0 && (
         <Link
           href="/planning"
           className="card p-4 flex flex-wrap items-center gap-3 border-mustard bg-yellow-soft hover:opacity-90 transition-opacity"

@@ -8,7 +8,9 @@ import {
   RUN_RESULT_LABEL,
   REPORT_STATUS_LABEL,
   STATUS_LABEL,
+  STATUS_ORDER,
   LOCATION_LOG_KIND_LABEL,
+  validateStatusRequirements,
 } from "@/lib/workflow";
 import { leadTime, slaStatus, SLA_STATUS_LABEL, SLA_STATUS_COLOR } from "@/lib/tat";
 import { requestRollup, PHASE_LABEL, PHASE_COLOR } from "@/lib/rollup";
@@ -92,6 +94,12 @@ export default async function ItemDetailPage({
   const currentUser = await getCurrentUser();
   const canEdit = canEditTests(currentUser?.role ?? null);
 
+  // เงื่อนไขที่ยังขาดสำหรับไปสถานะถัดไป — บอกผู้ใช้ก่อนกด ไม่ใช่หลังกด
+  const curIdx = STATUS_ORDER.indexOf(item.status);
+  const nextStatus =
+    curIdx >= 0 && curIdx < STATUS_ORDER.length - 1 ? STATUS_ORDER[curIdx + 1] : null;
+  const nextBlockers = nextStatus ? validateStatusRequirements(nextStatus, item) : [];
+
   const updateBound = updateItemDetails.bind(null, item.itemCode);
   const createRun = addTestRun.bind(null, item.itemCode);
   const saveReport = upsertReport.bind(null, item.itemCode);
@@ -120,9 +128,15 @@ export default async function ItemDetailPage({
     <div className="flex flex-col gap-4">
       {canEdit && (
       <section className="card p-5 sm:p-6">
-        <SectionTitle>เปลี่ยนสถานะ</SectionTitle>
+        <SectionTitle>ขั้นตอนงาน</SectionTitle>
         <div className="mt-4">
-          <StatusStepper itemCode={item.itemCode} currentStatus={item.status} statusBeforeHold={item.statusBeforeHold} />
+          <StatusStepper
+            itemCode={item.itemCode}
+            currentStatus={item.status}
+            statusBeforeHold={item.statusBeforeHold}
+            nextBlockers={nextBlockers}
+            hasOwner={item.ownerId != null}
+          />
         </div>
       </section>
       )}
@@ -243,7 +257,19 @@ export default async function ItemDetailPage({
               </tr>
             ))}
             {item.testRuns.length === 0 && (
-              <tr><td colSpan={7} className="p-6 text-center text-muted">ยังไม่มีการเทส</td></tr>
+              <tr>
+                <td colSpan={7}>
+                  <div className="empty-state">
+                    <span className="text-[26px] leading-none">🧪</span>
+                    <p className="text-[14px] font-medium text-ink">ยังไม่มีการบันทึกผลทดสอบ</p>
+                    <p className="text-[13px] text-muted">
+                      {canEdit
+                        ? "เริ่มบันทึกครั้งแรกได้ที่ปุ่มด้านล่าง — บันทึกได้หลายครั้งถ้าต้อง retest"
+                        : "เมื่อทีมแลปเริ่มทดสอบ ผลจะแสดงที่นี่"}
+                    </p>
+                  </div>
+                </td>
+              </tr>
             )}
           </tbody>
         </table>
@@ -369,13 +395,40 @@ export default async function ItemDetailPage({
     </div>
   );
 
+  // ยุบเหลือ 3 แท็บ ให้พอดีจอมือถือ และจัดกลุ่มตามสิ่งที่ผู้ใช้ตั้งใจมาทำ
   const tabs: TabDef[] = [
-    { id: "overview", label: "ภาพรวม", content: overviewPanel },
-    ...(canEdit ? [{ id: "detail", label: "รายละเอียดเทส", content: detailPanel }] : []),
-    { id: "runs", label: "ความคืบหน้า", content: runsPanel, badge: item.testRuns.length },
-    { id: "report", label: "รีพอร์ท", content: reportPanel },
-    { id: "files", label: "ไฟล์แนบ", content: attachmentsPanel, badge: item.attachments.length },
-    { id: "history", label: "ที่เก็บ & ประวัติ", content: historyPanel },
+    {
+      id: "overview",
+      label: "ภาพรวม",
+      content: (
+        <div className="flex flex-col gap-4">
+          {overviewPanel}
+          {canEdit && detailPanel}
+        </div>
+      ),
+    },
+    {
+      id: "work",
+      label: "ผลทดสอบ & รีพอร์ท",
+      badge: item.testRuns.length,
+      content: (
+        <div className="flex flex-col gap-4">
+          {runsPanel}
+          {reportPanel}
+        </div>
+      ),
+    },
+    {
+      id: "files",
+      label: "ไฟล์ & ประวัติ",
+      badge: item.attachments.length,
+      content: (
+        <div className="flex flex-col gap-4">
+          {attachmentsPanel}
+          {historyPanel}
+        </div>
+      ),
+    },
   ];
 
   return (
@@ -421,6 +474,14 @@ export default async function ItemDetailPage({
       </div>
 
       <Tabs tabs={tabs} />
+
+      {/* สแกนชิ้นต่อไปได้เลยโดยไม่ต้องย้อนกลับหลายชั้น (มือถือ) */}
+      <Link
+        href="/scan"
+        className="fixed right-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 inline-flex min-h-11 items-center gap-2 rounded-full bg-ink px-4 text-[13px] font-medium text-white shadow-lg sm:hidden"
+      >
+        📷 สแกนชิ้นต่อไป
+      </Link>
     </div>
   );
 }

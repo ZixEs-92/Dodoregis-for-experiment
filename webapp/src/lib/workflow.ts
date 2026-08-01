@@ -39,6 +39,20 @@ export const STATUS_COLOR: Record<RequestStatus, string> = {
 
 export const ALL_STATUSES: RequestStatus[] = [...STATUS_ORDER, "S9_HOLD", "S10_CANCEL"];
 
+/** ข้อความบนปุ่ม = งานที่ผู้ใช้กำลังจะทำ ไม่ใช่ชื่อสถานะปลายทาง */
+export const STATUS_ACTION_LABEL: Record<RequestStatus, string> = {
+  S1_RECEIVED: "กลับไปขั้นรับใบรีเควส",
+  S2_WAIT_PART: "รอรับพาร์ท",
+  S3_PART_IN: "รับพาร์ทแล้ว",
+  S4_TESTING: "เริ่มเทส",
+  S5_TEST_DONE: "เทสเสร็จ",
+  S6_REPORTING: "เริ่มทำรีพอร์ท",
+  S7_SENT: "ส่งรีพอร์ทแล้ว",
+  S8_CLOSED: "ปิดงาน",
+  S9_HOLD: "พักงานชั่วคราว",
+  S10_CANCEL: "ยกเลิกงาน",
+};
+
 /** สีทึบสำหรับกราฟ (CFD / time-in-status) — แยกสถานะให้เห็นชัด */
 export const STATUS_FILL: Record<RequestStatus, string> = {
   S1_RECEIVED: "bg-surface-strong",

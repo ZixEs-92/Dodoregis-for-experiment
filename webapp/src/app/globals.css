@@ -65,6 +65,13 @@ body {
   color: var(--color-body);
 }
 
+/* โฟกัสจากคีย์บอร์ดต้องเห็นชัดทุกที่ (WCAG 2.2) — ไม่รบกวนตอนคลิกเมาส์ */
+:where(a, button, [role="button"], select, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-info-border);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
 @layer components {
   .input {
     @apply w-full bg-canvas border border-hairline rounded-sm px-3.5 h-11 text-[14px] text-ink placeholder:text-muted/60 transition-colors;
@@ -74,17 +81,28 @@ body {
     @apply h-auto py-2.5;
   }
 
+  /* ปุ่มทุกแบบสูงอย่างน้อย 44px ตามแนวทางพื้นที่กดของ iOS/Android */
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-ink px-6 py-3 text-[14px] font-medium text-white transition-colors hover:bg-ink-active disabled:opacity-40 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-ink px-6 py-3 min-h-11 text-[14px] font-medium text-white transition-colors hover:bg-ink-active disabled:opacity-40 disabled:cursor-not-allowed;
   }
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-canvas border border-hairline px-6 py-3 text-[14px] font-medium text-ink transition-colors hover:bg-surface-soft disabled:opacity-40 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-canvas border border-hairline px-6 py-3 min-h-11 text-[14px] font-medium text-ink transition-colors hover:bg-surface-soft disabled:opacity-40 disabled:cursor-not-allowed;
   }
   .btn-sm {
-    @apply px-3.5 py-2 text-[13px];
+    @apply px-3.5 py-2 min-h-11 text-[13px];
   }
   .btn-danger {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-canvas border border-hairline px-3.5 py-2 text-[13px] font-medium text-coral transition-colors hover:bg-coral-soft disabled:opacity-40 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-canvas border border-hairline px-3.5 py-2 min-h-11 text-[13px] font-medium text-coral transition-colors hover:bg-coral-soft disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  /* ปุ่มไอคอนล้วน — สี่เหลี่ยมจัตุรัส 44px */
+  .btn-icon {
+    @apply grid place-items-center w-11 h-11 rounded-lg text-body transition-colors hover:bg-surface-soft;
+  }
+
+  /* สถานะว่าง: ไอคอน + คำอธิบาย + ปุ่มหลัก */
+  .empty-state {
+    @apply flex flex-col items-center gap-2 text-center px-6 py-10;
   }
 
   .card {

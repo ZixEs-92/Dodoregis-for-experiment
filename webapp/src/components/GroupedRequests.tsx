@@ -161,15 +161,26 @@ export default function GroupedRequests({ items }: { items: ItemRow[] }) {
           <button onClick={expandAll} className="btn-secondary btn-sm">ขยายทั้งหมด</button>
           <button onClick={collapseAll} className="btn-secondary btn-sm">ย่อทั้งหมด</button>
         </div>
-
-        <button
-          onClick={printLabels}
-          disabled={selected.size === 0}
-          className="btn-secondary btn-sm ml-auto"
-        >
-          พิมพ์ QR label ({selected.size})
-        </button>
       </div>
+
+      {/* แถบเครื่องมือโผล่เมื่อมีการเลือก แทนการวางปุ่มที่กดไม่ได้ค้างไว้ */}
+      {selected.size > 0 && (
+        <div className="sticky top-[4.5rem] z-10 flex flex-wrap items-center gap-2 rounded-lg border border-ink bg-ink px-3 py-2 text-white">
+          <span className="text-[13px] font-medium">เลือกไว้ {selected.size} รายการ</span>
+          <button
+            onClick={printLabels}
+            className="ml-auto inline-flex min-h-11 items-center rounded-lg bg-canvas px-3.5 text-[13px] font-medium text-ink transition-colors hover:bg-surface-soft"
+          >
+            พิมพ์ QR label
+          </button>
+          <button
+            onClick={() => setSelected(new Set())}
+            className="inline-flex min-h-11 items-center rounded-lg px-3 text-[13px] font-medium text-white/80 hover:text-white"
+          >
+            ยกเลิกการเลือก
+          </button>
+        </div>
+      )}
 
       <div className="text-[13px] text-muted">
         พบ <span className="font-medium text-ink">{items.length}</span> item ใน{" "}

@@ -1,31 +1,59 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { changeItemStatus } from "@/app/actions";
 import { RequestStatus } from "@/generated/prisma/client";
-import { STATUS_ORDER, STATUS_LABEL } from "@/lib/workflow";
+import {
+  STATUS_ORDER,
+  STATUS_LABEL,
+  STATUS_ACTION_LABEL,
+  STATUS_COLOR,
+} from "@/lib/workflow";
+import { useToast, useConfirm } from "@/components/ui/Feedback";
 
+/**
+ * ตัวเปลี่ยนสถานะงาน
+ * ออกแบบให้เหลือตัวควบคุม 3 ตัว แทนการวางปุ่มทุกสถานะเรียงกัน:
+ *   1. ปุ่มหลัก — งานถัดไปตามลำดับ (ข้อความเป็นคำกริยา ไม่ใช่เลขสถานะ)
+ *   2. เมนูเลือกสถานะ — สำหรับกรณีข้าม/ถอย
+ *   3. เมนู ⋯ — พักงาน / ยกเลิกงาน ซึ่งเป็นการกระทำที่ต้องตั้งใจ
+ * เงื่อนไขบังคับกรอกจะบอกตั้งแต่ก่อนกด ไม่ใช่หลังกดแล้ว error
+ */
 export default function StatusStepper({
   itemCode,
   currentStatus,
   statusBeforeHold,
+  nextBlockers = [],
+  hasOwner = true,
 }: {
   itemCode: string;
   currentStatus: RequestStatus;
   statusBeforeHold: RequestStatus | null;
+  /** สิ่งที่ยังขาดสำหรับไปสถานะถัดไป — คำนวณฝั่ง server */
+  nextBlockers?: string[];
+  hasOwner?: boolean;
 }) {
-  const [errors, setErrors] = useState<string[]>([]);
   const [isPending, startTransition] = useTransition();
+  const [menuOpen, setMenuOpen] = useState<null | "status" | "more">(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const toast = useToast();
+  const confirm = useConfirm();
 
-  // revalidatePath ใน action ทำให้ props รีเฟรชเองหลังเปลี่ยนสำเร็จ — ไม่ต้องเก็บ state ซ้ำ
-  function go(target: RequestStatus, confirmText?: string) {
-    if (confirmText && !window.confirm(confirmText)) return;
-    setErrors([]);
-    startTransition(async () => {
-      const res = await changeItemStatus(itemCode, target);
-      if (!res.ok) setErrors(res.errors);
-    });
-  }
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onDown(e: MouseEvent) {
+      if (!wrapRef.current?.contains(e.target as Node)) setMenuOpen(null);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setMenuOpen(null);
+    }
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
 
   const currentIdx = STATUS_ORDER.indexOf(currentStatus);
   const isHold = currentStatus === "S9_HOLD";
@@ -37,111 +65,198 @@ export default function StatusStepper({
   const prevStatus = currentIdx > 0 ? STATUS_ORDER[currentIdx - 1] : null;
   const resumeTarget = statusBeforeHold ?? "S1_RECEIVED";
 
+  // ยังไม่มอบหมาย = เดินหน้าเกินสถานะ 2 ไม่ได้ (ตรงกับกติกาฝั่ง server)
+  const blockedByOwner =
+    !hasOwner && nextStatus != null && STATUS_ORDER.indexOf(nextStatus) > 1;
+  const blockers = blockedByOwner
+    ? ["ยังไม่มอบหมายผู้รับผิดชอบ — ให้ผู้ดูแลระบบวางแผนก่อน"]
+    : nextBlockers;
+  const canAdvance = nextStatus != null && blockers.length === 0;
+
+  function run(target: RequestStatus, successMsg: string) {
+    setMenuOpen(null);
+    startTransition(async () => {
+      const res = await changeItemStatus(itemCode, target);
+      if (res.ok) toast(successMsg, "success");
+      else toast(res.errors[0] ?? "เปลี่ยนสถานะไม่สำเร็จ", "error");
+    });
+  }
+
+  async function pick(target: RequestStatus) {
+    setMenuOpen(null);
+    if (target === currentStatus) return;
+    const targetIdx = STATUS_ORDER.indexOf(target);
+    const isBackward = targetIdx >= 0 && currentIdx >= 0 && targetIdx < currentIdx;
+    const isSkip = targetIdx >= 0 && currentIdx >= 0 && targetIdx > currentIdx + 1;
+
+    if (isBackward || isSkip) {
+      const ok = await confirm({
+        title: isBackward
+          ? `ถอยกลับไป “${STATUS_LABEL[target]}” ?`
+          : `ข้ามไป “${STATUS_LABEL[target]}” เลย ?`,
+        detail: isBackward
+          ? "ระบบจะบันทึกการถอยกลับไว้ในประวัติกิจกรรม"
+          : "งานจะข้ามขั้นตอนระหว่างทาง และบันทึกไว้ในประวัติกิจกรรม",
+        confirmLabel: isBackward ? "ถอยกลับ" : "ข้ามไป",
+      });
+      if (!ok) return;
+    }
+    run(target, `เปลี่ยนเป็น ${STATUS_LABEL[target]} แล้ว`);
+  }
+
+  async function hold() {
+    setMenuOpen(null);
+    const ok = await confirm({
+      title: "พักงานนี้ไว้ชั่วคราว ?",
+      detail: `ระบบจะจำสถานะปัจจุบัน (${STATUS_LABEL[currentStatus]}) ไว้ กดกลับมาทำต่อได้ทุกเมื่อ`,
+      confirmLabel: "พักงาน",
+    });
+    if (ok) run("S9_HOLD", "พักงานไว้แล้ว");
+  }
+
+  async function cancel() {
+    setMenuOpen(null);
+    const ok = await confirm({
+      title: "ยกเลิกงานนี้ ?",
+      detail: "ข้อมูลจะยังอยู่ในระบบ ไม่ถูกลบ แต่งานจะไม่ถูกนับในคิวและรายงานอีกต่อไป",
+      confirmLabel: "ยกเลิกงาน",
+      danger: true,
+    });
+    if (ok) run("S10_CANCEL", "ยกเลิกงานแล้ว");
+  }
+
   return (
-    <div className="flex flex-col gap-4">
-      {/* ปุ่มหลักตามบริบท */}
+    <div ref={wrapRef} className="flex flex-col gap-3">
+      {/* แถวตัวควบคุมหลัก */}
       <div className="flex flex-wrap items-center gap-2">
-        {isHold && (
+        {isHold ? (
           <button
             disabled={isPending}
-            onClick={() => go(resumeTarget)}
+            onClick={() => run(resumeTarget, "กลับมาทำงานต่อแล้ว")}
             className="btn-primary btn-sm"
           >
-            ▶ กลับไปทำงานต่อ ({STATUS_LABEL[resumeTarget]})
+            ▶ กลับมาทำต่อ ({STATUS_LABEL[resumeTarget]})
           </button>
-        )}
-        {isCancelled && (
+        ) : isCancelled ? (
           <button
             disabled={isPending}
-            onClick={() =>
-              go("S1_RECEIVED", "ยกเลิกสถานะ Cancel แล้วเปิดงานใหม่ที่ขั้น 1?")
-            }
+            onClick={() => run("S1_RECEIVED", "เปิดงานใหม่แล้ว")}
             className="btn-secondary btn-sm"
           >
-            เปิดงานใหม่อีกครั้ง
+            เปิดงานนี้ใหม่อีกครั้ง
           </button>
-        )}
-        {!isHold && !isCancelled && nextStatus && (
+        ) : nextStatus ? (
           <button
-            disabled={isPending}
-            onClick={() => go(nextStatus)}
+            disabled={isPending || !canAdvance}
+            onClick={() => run(nextStatus, `เปลี่ยนเป็น ${STATUS_LABEL[nextStatus]} แล้ว`)}
             className="btn-primary btn-sm"
           >
-            ไปขั้นถัดไป → {STATUS_LABEL[nextStatus]}
+            {isPending ? "กำลังบันทึก…" : `${STATUS_ACTION_LABEL[nextStatus]} →`}
           </button>
+        ) : (
+          <span className="chip bg-forest text-white">งานปิดเรียบร้อยแล้ว</span>
         )}
-        {!isHold && !isCancelled && prevStatus && (
-          <button
-            disabled={isPending}
-            onClick={() =>
-              go(prevStatus, `ถอยกลับไปสถานะ ${STATUS_LABEL[prevStatus]}?`)
-            }
-            className="btn-secondary btn-sm"
-          >
-            ← ถอยกลับ
-          </button>
-        )}
-      </div>
 
-      {/* เส้นทาง workflow ทั้งหมด — กดข้ามขั้นได้แต่ต้อง confirm */}
-      <div className="flex flex-wrap gap-2">
-        {STATUS_ORDER.map((s, idx) => {
-          const isCurrent = s === currentStatus;
-          const isPast = currentIdx >= 0 && idx < currentIdx;
-          return (
-            <button
-              key={s}
-              disabled={isPending || isCurrent}
-              onClick={() =>
-                go(
-                  s,
-                  s === nextStatus
-                    ? undefined
-                    : isPast
-                    ? `ถอยกลับไปสถานะ ${STATUS_LABEL[s]}?`
-                    : `ข้ามไปสถานะ ${STATUS_LABEL[s]} เลยหรือไม่? (ไม่ได้ไปตามลำดับ)`
-                )
-              }
-              className={`px-3 py-2 rounded-lg text-[13px] font-medium border transition-colors disabled:opacity-100 ${
-                isCurrent
-                  ? "bg-ink text-white border-ink cursor-default"
-                  : isPast
-                  ? "bg-surface-soft text-body border-hairline hover:bg-surface-strong disabled:opacity-50"
-                  : "bg-canvas text-body border-hairline hover:bg-surface-soft disabled:opacity-50"
-              }`}
+        {/* เมนูเลือกสถานะ (ข้าม/ถอย) */}
+        <div className="relative">
+          <button
+            type="button"
+            disabled={isPending}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen === "status"}
+            onClick={() => setMenuOpen((m) => (m === "status" ? null : "status"))}
+            className="btn-secondary btn-sm"
+          >
+            เปลี่ยนสถานะเป็น ▾
+          </button>
+          {menuOpen === "status" && (
+            <div
+              role="menu"
+              className="absolute left-0 top-full z-30 mt-1 w-64 overflow-hidden rounded-lg border border-hairline bg-canvas py-1 shadow-lg"
             >
-              {STATUS_LABEL[s]}
-            </button>
-          );
-        })}
+              {STATUS_ORDER.map((s) => {
+                const on = s === currentStatus;
+                return (
+                  <button
+                    key={s}
+                    role="menuitem"
+                    disabled={on || isPending}
+                    onClick={() => pick(s)}
+                    className={`flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] transition-colors ${
+                      on ? "bg-surface-soft font-medium text-ink" : "text-body hover:bg-surface-soft"
+                    }`}
+                  >
+                    <span className={`chip ${STATUS_COLOR[s]} shrink-0`}>{STATUS_LABEL[s]}</span>
+                    {on && <span className="ml-auto text-[11px] text-muted">ตอนนี้</span>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* เมนูรอง: พักงาน / ยกเลิก */}
+        <div className="relative">
+          <button
+            type="button"
+            disabled={isPending}
+            aria-label="ตัวเลือกเพิ่มเติม"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen === "more"}
+            onClick={() => setMenuOpen((m) => (m === "more" ? null : "more"))}
+            className="btn-secondary btn-sm px-3"
+          >
+            ⋯
+          </button>
+          {menuOpen === "more" && (
+            <div
+              role="menu"
+              className="absolute right-0 top-full z-30 mt-1 w-56 overflow-hidden rounded-lg border border-hairline bg-canvas py-1 shadow-lg"
+            >
+              {prevStatus && !isHold && !isCancelled && (
+                <button
+                  role="menuitem"
+                  onClick={() => pick(prevStatus)}
+                  className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] text-body hover:bg-surface-soft"
+                >
+                  ← ถอยกลับ ({STATUS_LABEL[prevStatus]})
+                </button>
+              )}
+              <button
+                role="menuitem"
+                disabled={isHold}
+                onClick={hold}
+                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] text-body hover:bg-surface-soft disabled:opacity-40"
+              >
+                ⏸ พักงานชั่วคราว
+              </button>
+              <button
+                role="menuitem"
+                disabled={isCancelled}
+                onClick={cancel}
+                className="flex w-full items-center gap-2 border-t border-hairline px-3 py-2.5 text-left text-[13px] text-coral hover:bg-coral-soft disabled:opacity-40"
+              >
+                ✕ ยกเลิกงาน
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="flex gap-2 pt-3 border-t border-hairline">
-        <button
-          disabled={isPending || isHold}
-          onClick={() => go("S9_HOLD")}
-          className="px-3.5 py-2 rounded-lg text-[13px] font-medium bg-mustard-soft text-mustard-deep hover:bg-mustard hover:text-ink transition-colors disabled:opacity-50"
-        >
-          ⏸ 9-Hold พักงานชั่วคราว
-        </button>
-        <button
-          disabled={isPending || isCancelled}
-          onClick={() =>
-            go("S10_CANCEL", "ยกเลิกงานนี้? (record จะยังอยู่ในระบบ ไม่ถูกลบ)")
-          }
-          className="px-3.5 py-2 rounded-lg text-[13px] font-medium bg-coral-soft text-coral hover:bg-coral hover:text-white transition-colors disabled:opacity-50"
-        >
-          ✕ 10-Cancel ยกเลิกงาน
-        </button>
-      </div>
-
-      {errors.length > 0 && (
-        <div className="bg-coral-soft border border-coral/30 text-coral rounded-lg p-3.5 text-[13px]">
-          <ul className="list-disc list-inside flex flex-col gap-0.5">
-            {errors.map((e) => (
-              <li key={e}>{e}</li>
+      {/* บอกเงื่อนไขก่อนกด ไม่ใช่หลังกด */}
+      {!isHold && !isCancelled && nextStatus && blockers.length > 0 && (
+        <div className="rounded-lg border border-mustard/40 bg-mustard-soft px-3.5 py-3 text-[13px] text-mustard-deep">
+          <p className="font-medium">
+            ต้องกรอกข้อมูลให้ครบก่อนถึงจะ “{STATUS_ACTION_LABEL[nextStatus]}” ได้
+          </p>
+          <ul className="mt-1 list-inside list-disc">
+            {blockers.map((b) => (
+              <li key={b}>{b}</li>
             ))}
           </ul>
+          {!blockedByOwner && (
+            <p className="mt-1 text-[12px]">กรอกได้ที่แท็บ “รายละเอียดเทส”</p>
+          )}
         </div>
       )}
     </div>

@@ -13,8 +13,8 @@ export default async function LineSettingsPage() {
 
   return (
     <div className="flex flex-col gap-5 pb-10">
-      <Link href="/notifications" className="text-[13px] text-muted hover:text-ink w-fit">
-        ← กลับไปหน้าแจ้งเตือน
+      <Link href="/settings" className="text-[13px] text-muted hover:text-ink w-fit">
+        ← กลับไปตั้งค่าระบบ
       </Link>
 
       <div>

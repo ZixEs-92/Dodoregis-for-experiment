@@ -18,14 +18,14 @@ export default async function MasterPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-[22px] font-medium text-ink sm:text-[26px]">ตั้งค่าข้อมูลระบบ (Master Data)</h1>
-          <p className="text-[14px] text-muted mt-0.5">
-            จัดการรายการใน dropdown — เพิ่ม/แก้ชื่อ/ปิดใช้งาน · การปิดใช้งานจะซ่อนจากตัวเลือกใหม่ แต่ไม่กระทบงานเดิมที่อ้างอิงอยู่
-          </p>
-        </div>
-        <MasterLink href="/settings/users" icon="👥" label="จัดการผู้ใช้" sub="บัญชี / บทบาท / รหัสผ่าน" />
+      <Link href="/settings" className="text-[13px] text-muted hover:text-ink w-fit">
+        ← กลับไปตั้งค่าระบบ
+      </Link>
+      <div>
+        <h1 className="text-[22px] font-medium text-ink sm:text-[26px]">ข้อมูลระบบ (Master Data)</h1>
+        <p className="text-[14px] text-muted mt-0.5">
+          จัดการรายการใน dropdown — เพิ่ม/แก้ชื่อ/ปิดใช้งาน · การปิดใช้งานจะซ่อนจากตัวเลือกใหม่ แต่ไม่กระทบงานเดิมที่อ้างอิงอยู่
+        </p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -59,27 +59,3 @@ export default async function MasterPage() {
   );
 }
 
-function MasterLink({
-  href,
-  icon,
-  label,
-  sub,
-}: {
-  href: string;
-  icon: string;
-  label: string;
-  sub: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="card px-4 py-3 flex items-center gap-3 hover:bg-surface-soft transition-colors shrink-0"
-    >
-      <span className="text-[22px] leading-none">{icon}</span>
-      <span className="flex flex-col">
-        <span className="text-[14px] font-medium text-ink">{label} →</span>
-        <span className="text-[11px] text-muted">{sub}</span>
-      </span>
-    </Link>
-  );
-}

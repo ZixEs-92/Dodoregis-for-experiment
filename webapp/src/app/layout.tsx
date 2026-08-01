@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Inter, Noto_Sans_Thai } from "next/font/google";
 import "./globals.css";
 import NavBar from "@/components/NavBar";
+import BottomNav from "@/components/BottomNav";
+import UiProvider from "@/components/ui/Feedback";
 import { getUnreadCount } from "@/lib/notifications";
 import { getCurrentUser } from "@/lib/auth";
 
@@ -37,10 +39,14 @@ export default async function RootLayout({
   return (
     <html lang="th" className={`${inter.variable} ${notoThai.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-surface-soft text-body font-sans">
-        <NavBar unreadCount={unreadCount} user={navUser} />
-        <main className="flex-1 w-full max-w-6xl mx-auto px-3 py-5 sm:px-6 sm:py-8">
-          {children}
-        </main>
+        <UiProvider>
+          <NavBar unreadCount={unreadCount} user={navUser} />
+          {/* เว้นที่ด้านล่างให้แถบเมนูมือถือ (sm ขึ้นไปไม่มีแถบล่าง) */}
+          <main className="flex-1 w-full max-w-6xl mx-auto px-3 py-5 pb-[calc(4.5rem+env(safe-area-inset-bottom))] sm:px-6 sm:py-8 sm:pb-8">
+            {children}
+          </main>
+          <BottomNav user={navUser} unreadCount={unreadCount} />
+        </UiProvider>
       </body>
     </html>
   );
