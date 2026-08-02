@@ -6,7 +6,9 @@ import { MAX_UPLOAD_MB, MAX_UPLOAD_TOTAL_MB } from "@/lib/workflow";
 // เก็บไฟล์อัปโหลดไว้นอก public (เสิร์ฟผ่าน route /api/attachments/[id] เท่านั้น)
 // ตั้ง UPLOAD_DIR ได้เมื่อ deploy บนคลาวด์/NAS ที่ต้องเขียนลง volume แยก (เช่น /data/uploads)
 // ไม่ตั้ง = ใช้โฟลเดอร์ uploads/ ข้างโปรเจคเหมือนเดิม
-export const UPLOAD_DIR = process.env.UPLOAD_DIR ?? path.join(process.cwd(), "uploads");
+// turbopackIgnore กัน bundler ไล่ trace ทั้งโปรเจคเพราะเจอ process.cwd() (เตือนตอน build)
+export const UPLOAD_DIR =
+  process.env.UPLOAD_DIR ?? path.join(/* turbopackIgnore: true */ process.cwd(), "uploads");
 
 // ไฟล์เล็ก (รูป/PDF/เอกสาร) เท่านั้น — raw data ก้อนใหญ่ให้เก็บโฟลเดอร์กลางแล้วใส่ลิงก์
 const MAX_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
