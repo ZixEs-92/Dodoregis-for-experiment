@@ -5,6 +5,13 @@ import { useActionState } from "react";
 import { createRequest, ActionResult } from "@/app/actions";
 import { FormErrors } from "@/components/FormMessages";
 import Icon from "@/components/ui/Icon";
+import {
+  ATTACHMENT_KIND_LABEL,
+  AttachmentKindKey,
+  MAX_UPLOAD_MB,
+  MAX_UPLOAD_TOTAL_MB,
+} from "@/lib/workflow";
+import { humanSize } from "@/lib/format";
 
 const DRAFT_KEY = "dodoregis:new-request-draft";
 const DRAFT_EVENT = "dodoregis:draft-changed";
@@ -39,6 +46,23 @@ type ItemRow = {
   planEnd: string;
   ownerId: string;
 };
+
+/** ไฟล์ที่เลือกไว้รอส่งไปพร้อมฟอร์ม (ยังไม่อัปโหลดจนกว่าจะกดบันทึก) */
+type FileRow = { file: File; kind: AttachmentKindKey };
+
+const MAX_FILE_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
+const MAX_TOTAL_BYTES = MAX_UPLOAD_TOTAL_MB * 1024 * 1024;
+
+/** เดาประเภทไฟล์ให้ล่วงหน้า — ผู้ใช้แก้เองได้ที่ dropdown */
+function guessKind(file: File): AttachmentKindKey {
+  const name = file.name.toLowerCase();
+  if (file.type.startsWith("image/")) return "PHOTO";
+  if (file.type === "message/rfc822" || name.endsWith(".eml") || name.endsWith(".msg"))
+    return "EMAIL";
+  if (file.type === "application/pdf" || name.endsWith(".doc") || name.endsWith(".docx"))
+    return "REQUEST_DOC";
+  return "OTHER";
+}
 
 const emptyPart = (): PartRow => ({ name: "", partNo: "", qty: "" });
 const emptyItem = (): ItemRow => ({
@@ -79,6 +103,9 @@ export default function NewRequestForm({
 
   const [parts, setParts] = useState<PartRow[]>([emptyPart()]);
   const [items, setItems] = useState<ItemRow[]>([]);
+  const [files, setFiles] = useState<FileRow[]>([]);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
 
   const storedDraft = useSyncExternalStore(subscribeDraft, readDraft, () => null);
   const draftFound = storedDraft !== null && !dismissed;
@@ -116,6 +143,26 @@ export default function NewRequestForm({
           : r,
       ),
     );
+
+  // ── ไฟล์แนบ ──
+  const totalBytes = files.reduce((n, f) => n + f.file.size, 0);
+
+  function addFiles(picked: File[]) {
+    const tooBig = picked.filter((f) => f.size > MAX_FILE_BYTES);
+    const ok = picked.filter((f) => f.size > 0 && f.size <= MAX_FILE_BYTES);
+    if (ok.length > 0) {
+      setFiles((rows) => [...rows, ...ok.map((file) => ({ file, kind: guessKind(file) }))]);
+    }
+    setFileError(
+      tooBig.length > 0
+        ? `${tooBig.map((f) => f.name).join(", ")} — ใหญ่เกิน ${MAX_UPLOAD_MB}MB ไฟล์ใหญ่ให้เก็บโฟลเดอร์กลางแล้วใส่เป็นลิงก์ในหน้าใบรีเควสแทน`
+        : null,
+    );
+  }
+
+  const setFileKind = (i: number, kind: AttachmentKindKey) =>
+    setFiles((rows) => rows.map((r, n) => (n === i ? { ...r, kind } : r)));
+  const removeFile = (i: number) => setFiles((rows) => rows.filter((_, n) => n !== i));
 
   // ── ร่าง ──
   function saveDraft() {
@@ -172,6 +219,11 @@ export default function NewRequestForm({
       ref={formRef}
       action={(fd) => {
         writeDraft(null);
+        // ไฟล์ถูกเก็บไว้ใน state (input ไม่มี name) — ใส่เข้า FormData ตอนส่ง ให้ files/file_kinds เรียงคู่กัน
+        for (const { file, kind } of files) {
+          fd.append("files", file);
+          fd.append("file_kinds", kind);
+        }
         return formAction(fd);
       }}
       onBlur={saveDraft}
@@ -472,12 +524,109 @@ export default function NewRequestForm({
         )}
       </section>
 
+      {/* ── ไฟล์แนบ (แนบได้ตั้งแต่ตอนลงใบ) ── */}
+      <section className="flex flex-col gap-3 pt-5 border-t border-hairline">
+        <div>
+          <h2 className="text-[13px] font-medium text-muted uppercase tracking-wide">
+            ไฟล์แนบ (ไม่บังคับ)
+          </h2>
+          <p className="text-[12px] text-muted mt-0.5">
+            ใบรีเควสตัวจริง · อีเมลต้นเรื่อง (.eml/.msg) · รูปชิ้นงาน · สเปคการทดสอบ —
+            ไม่เกิน {MAX_UPLOAD_MB}MB ต่อไฟล์ (raw data ก้อนใหญ่ให้เก็บโฟลเดอร์กลางแล้วแนบเป็นลิงก์ภายหลัง)
+          </p>
+        </div>
+
+        <label
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragging(true);
+          }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragging(false);
+            addFiles(Array.from(e.dataTransfer.files));
+          }}
+          className={`flex min-h-11 cursor-pointer flex-col items-center gap-1 rounded-lg border border-dashed px-4 py-5 text-center transition-colors ${
+            dragging ? "border-ink bg-surface-soft" : "border-hairline hover:bg-surface-soft"
+          }`}
+        >
+          {/* ไม่ใส่ name — คุมไฟล์เองผ่าน state แล้วค่อย append ตอน submit */}
+          <input
+            type="file"
+            multiple
+            className="sr-only"
+            onChange={(e) => {
+              addFiles(Array.from(e.target.files ?? []));
+              e.target.value = ""; // ให้เลือกไฟล์ชื่อเดิมซ้ำได้
+            }}
+          />
+          <Icon name="plus" size={18} />
+          <span className="text-[13px] font-medium text-ink">เลือกไฟล์ หรือลากไฟล์มาวางที่นี่</span>
+          <span className="text-[12px] text-muted">รูป · PDF · Word/Excel · อีเมล · text</span>
+        </label>
+
+        {fileError && (
+          <p className="rounded-lg border border-coral/30 bg-coral-soft px-3 py-2 text-[13px] text-coral">
+            {fileError}
+          </p>
+        )}
+
+        {files.length > 0 && (
+          <>
+            <ul className="flex flex-col gap-2">
+              {files.map((f, i) => (
+                <li
+                  key={`${f.file.name}-${i}`}
+                  className="flex flex-col gap-2 rounded-lg border border-hairline p-3 sm:flex-row sm:items-center"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[14px] text-ink">{f.file.name}</div>
+                    <div className="text-[12px] text-muted">{humanSize(f.file.size)}</div>
+                  </div>
+                  <select
+                    value={f.kind}
+                    onChange={(e) => setFileKind(i, e.target.value as AttachmentKindKey)}
+                    aria-label={`ประเภทของ ${f.file.name}`}
+                    className="input sm:w-48"
+                  >
+                    {Object.entries(ATTACHMENT_KIND_LABEL).map(([v, l]) => (
+                      <option key={v} value={v}>{l}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => removeFile(i)}
+                    className="btn-secondary btn-sm text-coral shrink-0"
+                  >
+                    ลบ
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <p
+              className={`text-[12px] ${
+                totalBytes > MAX_TOTAL_BYTES ? "text-coral font-medium" : "text-muted"
+              }`}
+            >
+              {files.length} ไฟล์ · รวม {humanSize(totalBytes)}
+              {totalBytes > MAX_TOTAL_BYTES &&
+                ` — เกินโควตา ${MAX_UPLOAD_TOTAL_MB}MB ต่อการส่ง 1 ครั้ง กรุณาเอาบางไฟล์ออกแล้วแนบเพิ่มทีหลังในหน้าใบรีเควส`}
+            </p>
+          </>
+        )}
+      </section>
+
       <div className="flex flex-col gap-2">
-        <button type="submit" disabled={pending} className="btn-primary w-fit">
+        <button
+          type="submit"
+          disabled={pending || totalBytes > MAX_TOTAL_BYTES}
+          className="btn-primary w-fit"
+        >
           {pending ? "กำลังบันทึก..." : "บันทึกใบรีเควส"}
         </button>
         <span className="text-[12px] text-muted">
-          ระบบจะออกเลขใบให้อัตโนมัติ · เพิ่มชิ้นงานและรายการทดสอบภายหลังได้ในหน้าใบรีเควส
+          ระบบจะออกเลขใบให้อัตโนมัติ · เพิ่มชิ้นงาน รายการทดสอบ และไฟล์แนบภายหลังได้ในหน้าใบรีเควส
         </span>
       </div>
     </form>

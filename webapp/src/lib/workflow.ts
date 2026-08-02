@@ -94,6 +94,13 @@ export const ATTACHMENT_KIND_LABEL = {
   OTHER: "อื่นๆ",
 } as const;
 
+export type AttachmentKindKey = keyof typeof ATTACHMENT_KIND_LABEL;
+
+/** ขนาดไฟล์แนบสูงสุดต่อ 1 ไฟล์ (MB) — ไฟล์ใหญ่กว่านี้ให้เก็บโฟลเดอร์กลางแล้วแนบลิงก์ */
+export const MAX_UPLOAD_MB = 5;
+/** รวมทุกไฟล์ในการส่ง 1 ครั้ง — ต้องน้อยกว่า serverActions.bodySizeLimit ใน next.config.ts */
+export const MAX_UPLOAD_TOTAL_MB = 20;
+
 /** ข้อมูล item ที่ใช้ตรวจกติกาบังคับกรอกตามสถานะ */
 export type ItemForValidation = {
   partReceivedDate: Date | null;

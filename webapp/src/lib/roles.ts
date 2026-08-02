@@ -32,3 +32,16 @@ export function canCreateRequest(role: UserRole | null | undefined): boolean {
 export function canPlanAndManage(role: UserRole | null | undefined): boolean {
   return hasRole(role, "ADMIN");
 }
+
+/**
+ * แนบไฟล์เข้าใบรีเควส — ทีมแลปแนบได้ทุกใบ, ผู้ขอทดสอบแนบได้เฉพาะใบของแผนกตัวเอง
+ * (เขาเป็นคนถืออีเมลต้นเรื่อง/ใบรีเควสตัวจริง/รูปชิ้นงาน) · ฝั่ง server บังคับซ้ำที่ assertCanEditRequest
+ */
+export function canAttachToRequest(
+  role: UserRole | null | undefined,
+  userDeptId: number | null | undefined,
+  requestDeptId: number,
+): boolean {
+  if (canEditTests(role)) return true;
+  return role === "REQUESTER" && userDeptId != null && userDeptId === requestDeptId;
+}

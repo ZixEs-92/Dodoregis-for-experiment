@@ -12,7 +12,7 @@ import RequestParts from "@/components/RequestParts";
 import AttachmentsSection from "@/components/AttachmentsSection";
 import { addItem, uploadAttachment } from "@/app/actions";
 import { getCurrentUser } from "@/lib/auth";
-import { canCreateRequest, canEditTests } from "@/lib/roles";
+import { canAttachToRequest, canCreateRequest, canEditTests } from "@/lib/roles";
 
 export async function generateMetadata({
   params,
@@ -60,6 +60,11 @@ export default async function RequestOverviewPage({
   const currentUser = await getCurrentUser();
   const canCreate = canCreateRequest(currentUser?.role ?? null);
   const canEdit = canEditTests(currentUser?.role ?? null);
+  const canAttach = canAttachToRequest(
+    currentUser?.role,
+    currentUser?.departmentId,
+    request.requestDeptId,
+  );
 
   return (
     <div className="flex flex-col gap-5 pb-10">
@@ -241,7 +246,8 @@ export default async function RequestOverviewPage({
       <AttachmentsSection
         title="ไฟล์แนบระดับใบรีเควส (email / ใบรีเควส / เอกสารรวม)"
         uploadAction={uploadBound}
-        readOnly={!canEdit}
+        readOnly={!canAttach}
+        canDelete={canEdit}
         attachments={request.attachments.map((a) => ({
           id: a.id,
           kind: a.kind,

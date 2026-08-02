@@ -1,11 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile, readFile, unlink } from "node:fs/promises";
 import path from "node:path";
+import { MAX_UPLOAD_MB, MAX_UPLOAD_TOTAL_MB } from "@/lib/workflow";
 
 // เก็บไฟล์อัปโหลดไว้นอก public (เสิร์ฟผ่าน route /api/attachments/[id] เท่านั้น)
 export const UPLOAD_DIR = path.join(process.cwd(), "uploads");
 
-const MAX_BYTES = 15 * 1024 * 1024; // 15MB — ไฟล์เล็ก (รูป/PDF/เอกสาร); raw data ใหญ่ให้ใส่ลิงก์
+// ไฟล์เล็ก (รูป/PDF/เอกสาร) เท่านั้น — raw data ก้อนใหญ่ให้เก็บโฟลเดอร์กลางแล้วใส่ลิงก์
+const MAX_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
+const MAX_TOTAL_BYTES = MAX_UPLOAD_TOTAL_MB * 1024 * 1024;
 const ALLOWED_MIME = new Set([
   "image/jpeg",
   "image/png",
@@ -17,6 +20,7 @@ const ALLOWED_MIME = new Set([
   "application/vnd.ms-excel",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "message/rfc822", // .eml
+  "application/vnd.ms-outlook", // .msg (อีเมลที่ save จาก Outlook)
   "text/plain",
   "text/csv",
 ]);
@@ -29,12 +33,24 @@ export type StoredFile = {
 };
 
 export function validateUpload(file: File): string | null {
-  if (file.size === 0) return "ไฟล์ว่างเปล่า";
+  if (file.size === 0) return `ไฟล์ว่างเปล่า: ${file.name}`;
   if (file.size > MAX_BYTES)
-    return `ไฟล์ใหญ่เกิน 15MB (ไฟล์ใหญ่ให้ใช้แนบลิงก์แทน)`;
+    return `${file.name} ใหญ่เกิน ${MAX_UPLOAD_MB}MB (ไฟล์ใหญ่ให้เก็บโฟลเดอร์กลางแล้วแนบลิงก์แทน)`;
   if (file.type && !ALLOWED_MIME.has(file.type))
-    return `ชนิดไฟล์ไม่รองรับ: ${file.type} (รองรับรูป, PDF, Word/Excel, email, text)`;
+    return `ชนิดไฟล์ไม่รองรับ: ${file.name} (รองรับรูป, PDF, Word/Excel, email, text)`;
   return null;
+}
+
+/** ตรวจไฟล์หลายไฟล์ที่ส่งมาพร้อมกัน — รวมขนาดต้องไม่เกินโควตาต่อการส่ง 1 ครั้ง */
+export function validateUploadBatch(files: File[]): string[] {
+  const errors = files.map(validateUpload).filter((e): e is string => e !== null);
+  const total = files.reduce((n, f) => n + f.size, 0);
+  if (total > MAX_TOTAL_BYTES) {
+    errors.push(
+      `ไฟล์แนบรวมกันใหญ่เกิน ${MAX_UPLOAD_TOTAL_MB}MB — ลดจำนวนไฟล์ แล้วค่อยแนบเพิ่มในหน้าใบรีเควสภายหลัง`,
+    );
+  }
+  return errors;
 }
 
 export async function storeUploadedFile(file: File): Promise<StoredFile> {

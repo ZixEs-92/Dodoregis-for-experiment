@@ -4,7 +4,7 @@ import { useActionState, useState, useTransition } from "react";
 import { ActionResult, deleteAttachment } from "@/app/actions";
 import { FormErrors } from "@/components/FormMessages";
 import { useConfirm, useToast, useToastOnSaved } from "@/components/ui/Feedback";
-import { ATTACHMENT_KIND_LABEL } from "@/lib/workflow";
+import { ATTACHMENT_KIND_LABEL, MAX_UPLOAD_MB } from "@/lib/workflow";
 import { humanSize } from "@/lib/format";
 
 type Attachment = {
@@ -35,11 +35,14 @@ export default function AttachmentsSection({
   attachments,
   title,
   readOnly = false,
+  canDelete = !readOnly,
 }: {
   uploadAction: (prev: ActionResult, formData: FormData) => Promise<ActionResult>;
   attachments: Attachment[];
   title: string;
   readOnly?: boolean;
+  /** ลบไฟล์แนบได้เฉพาะทีมแลป — ผู้ขอทดสอบแนบเพิ่มได้แต่ลบไม่ได้ */
+  canDelete?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(uploadAction, initial);
   const [mode, setMode] = useState<"file" | "link">("file");
@@ -97,7 +100,7 @@ export default function AttachmentsSection({
                     {att.url && !att.storedName ? " · ลิงก์ภายนอก" : ""}
                   </div>
                 </div>
-                {!readOnly && (
+                {canDelete && (
                   <button
                     onClick={() => onDelete(att.id, name)}
                     disabled={deletingId && pendingId === att.id}
@@ -161,7 +164,7 @@ export default function AttachmentsSection({
           {mode === "file" ? (
             <label className="flex flex-col gap-1.5 sm:col-span-2">
               <span className="label-text">
-                ไฟล์ (รูป/PDF/Word/Excel/email/text · ไม่เกิน 15MB)
+                ไฟล์ (รูป/PDF/Word/Excel/email/text · ไม่เกิน {MAX_UPLOAD_MB}MB)
               </span>
               <input
                 type="file"

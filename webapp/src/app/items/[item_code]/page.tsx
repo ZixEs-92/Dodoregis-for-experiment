@@ -16,7 +16,7 @@ import { leadTime, slaStatus, SLA_STATUS_LABEL, SLA_STATUS_COLOR } from "@/lib/t
 import { requestRollup, PHASE_LABEL, PHASE_COLOR } from "@/lib/rollup";
 import { testTitle, isHttpUrl } from "@/lib/format";
 import { getCurrentUser } from "@/lib/auth";
-import { canEditTests } from "@/lib/roles";
+import { canAttachToRequest, canEditTests } from "@/lib/roles";
 import CopyButton from "@/components/CopyButton";
 import Icon from "@/components/ui/Icon";
 import StatusBadge from "@/components/StatusBadge";
@@ -96,6 +96,12 @@ export default async function ItemDetailPage({
   // สิทธิ์: viewer (ไม่ล็อกอิน) เห็นอย่างเดียว, engineer ขึ้นไปแก้ได้
   const currentUser = await getCurrentUser();
   const canEdit = canEditTests(currentUser?.role ?? null);
+  // ผู้ขอทดสอบแนบไฟล์เพิ่มในงานของแผนกตัวเองได้ แต่ลบไม่ได้
+  const canAttach = canAttachToRequest(
+    currentUser?.role,
+    currentUser?.departmentId,
+    item.request.requestDeptId,
+  );
 
   // เงื่อนไขที่ยังขาดสำหรับไปสถานะถัดไป — บอกผู้ใช้ก่อนกด ไม่ใช่หลังกด
   const curIdx = STATUS_ORDER.indexOf(item.status);
@@ -372,7 +378,8 @@ export default async function ItemDetailPage({
     <AttachmentsSection
       title="ไฟล์แนบของ item (รูปชิ้นงาน / สเปคทดสอบ)"
       uploadAction={uploadBound}
-      readOnly={!canEdit}
+      readOnly={!canAttach}
+      canDelete={canEdit}
       attachments={item.attachments.map((a) => ({
         id: a.id, kind: a.kind, label: a.label, fileName: a.fileName,
         storedName: a.storedName, mimeType: a.mimeType, sizeBytes: a.sizeBytes, url: a.url,

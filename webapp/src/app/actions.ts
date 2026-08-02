@@ -10,6 +10,7 @@ import { sendLinePush, LineResult } from "@/lib/line";
 import {
   storeUploadedFile,
   validateUpload,
+  validateUploadBatch,
   deleteStoredFile,
 } from "@/lib/uploads";
 import {
@@ -157,6 +158,38 @@ function itemDataFromForm(fd: FormData) {
   };
 }
 
+// ── ไฟล์แนบที่ส่งมาพร้อมฟอร์ม ───────────────────────────────
+
+type PendingAttachment = { file: File; kind: AttachmentKind };
+
+/**
+ * อ่านไฟล์แนบที่ส่งมาพร้อมฟอร์ม — ฟิลด์ `files` กับ `file_kinds` เรียงคู่กันตามลำดับ
+ * (จับคู่ก่อนกรองไฟล์ว่าง เพื่อไม่ให้ index เลื่อน)
+ */
+function attachmentsFromForm(fd: FormData): PendingAttachment[] {
+  const kinds = fd.getAll("file_kinds").map(String);
+  return fd
+    .getAll("files")
+    .map((f, i) => ({ f, kindRaw: kinds[i] }))
+    .filter(({ f }) => f instanceof File && f.size > 0)
+    .map(({ f, kindRaw }) => ({
+      file: f as File,
+      kind: (KIND_VALUES.includes(kindRaw) ? kindRaw : "OTHER") as AttachmentKind,
+    }));
+}
+
+async function saveAttachments(
+  list: PendingAttachment[],
+  scope: { requestNo?: string; itemId?: number }
+) {
+  for (const { file, kind } of list) {
+    const stored = await storeUploadedFile(file);
+    await prisma.attachment.create({
+      data: { requestNo: scope.requestNo, itemId: scope.itemId, kind, ...stored },
+    });
+  }
+}
+
 // ── สร้างใบรีเควสใหม่ (หลายชิ้นงาน + หลายรายการทดสอบ) ───────
 
 export async function createRequest(
@@ -195,6 +228,9 @@ export async function createRequest(
     }))
     .filter((i) => i.testDetail || i.testName || i.partIdx.length > 0);
 
+  // ตรวจไฟล์แนบก่อนสร้างใบ — ถ้าไฟล์ไม่ผ่านจะได้ไม่เกิดใบค้างโดยไม่มีไฟล์
+  const pendingFiles = attachmentsFromForm(formData);
+
   const errors: string[] = [];
   if (!deptId) errors.push("กรุณาเลือกแผนกที่รีเควส");
   if (!str(formData, "requester")) errors.push("กรุณากรอกชื่อผู้ขอทดสอบ");
@@ -205,6 +241,7 @@ export async function createRequest(
     if (!i.testDetail) errors.push(`รายการทดสอบที่ ${n + 1}: กรุณากรอกรายละเอียดเทส/มาตรฐานอ้างอิง`);
     if (i.partIdx.length === 0) errors.push(`รายการทดสอบที่ ${n + 1}: กรุณาเลือกชิ้นงานที่จะทดสอบ`);
   });
+  errors.push(...validateUploadBatch(pendingFiles.map((p) => p.file)));
   if (errors.length > 0) return { ok: false, errors };
 
   const requestDate = date(formData, "request_date")!;
@@ -272,6 +309,9 @@ export async function createRequest(
       },
     });
   }
+
+  // ไฟล์แนบที่แนบมาพร้อมใบ (ใบรีเควสตัวจริง / อีเมลต้นเรื่อง / รูปชิ้นงาน)
+  await saveAttachments(pendingFiles, { requestNo: createdRegisNo });
 
   // แจ้งเตือน admin: มีใบใหม่เข้ามา (ทั้งกรณีมีรายการรอวางแผน และกรณีที่ยังไม่มีรายการทดสอบ)
   {
@@ -863,8 +903,20 @@ export async function uploadAttachment(
   _prev: ActionResult,
   formData: FormData
 ): Promise<ActionResult> {
-  const denied = await ensureEditTests();
+  // ผู้ขอทดสอบแนบไฟล์เองได้ (เขาเป็นคนถืออีเมล/ใบรีเควส/รูปชิ้นงาน)
+  // แต่เฉพาะใบของแผนกตัวเอง — assertCanEditRequest บังคับให้ · viewer ถูกปัดตกตั้งแต่ ensureCreateRequest
+  const regisNo =
+    scope.requestNo ??
+    (
+      await prisma.testItem.findUnique({
+        where: { id: scope.itemId! },
+        select: { regisNo: true },
+      })
+    )?.regisNo;
+  if (!regisNo) return { ok: false, errors: ["ไม่พบใบรีเควสของไฟล์แนบนี้"] };
+  const denied = await assertCanEditRequest(regisNo);
   if (denied) return { ok: false, errors: [denied] };
+
   const kindRaw = str(formData, "kind");
   const kind: AttachmentKind =
     kindRaw && KIND_VALUES.includes(kindRaw)
