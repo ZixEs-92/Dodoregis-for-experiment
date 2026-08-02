@@ -13,8 +13,9 @@ const baseLinks = [
   { href: "/", label: "หน้าหลัก" },
   { href: "/board", label: "บอร์ดงาน" },
   { href: "/requests", label: "รายการงาน" },
-  { href: "/schedule", label: "ตารางงาน" },
 ];
+// ตารางงานเป็นข้อมูลภายในทีม — ซ่อนจากคนที่ยังไม่ล็อกอิน (หน้าเองก็กันอีกชั้น)
+const memberLinks = [{ href: "/schedule", label: "ตารางงาน" }];
 const adminLinks = [{ href: "/admin", label: "ผู้ดูแลระบบ" }];
 
 export default function NavBar({
@@ -25,7 +26,11 @@ export default function NavBar({
   user?: { name: string; role: UserRole } | null;
 }) {
   const pathname = usePathname();
-  const links = user?.role === "ADMIN" ? [...baseLinks, ...adminLinks] : baseLinks;
+  const links = [
+    ...baseLinks,
+    ...(user ? memberLinks : []),
+    ...(user?.role === "ADMIN" ? adminLinks : []),
+  ];
 
   return (
     <header className="sticky top-0 z-20 bg-canvas border-b border-hairline">

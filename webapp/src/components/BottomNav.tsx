@@ -40,7 +40,8 @@ export default function BottomNav({
 
   const moreLinks: { href: string; label: string; icon: IconName }[] = [
     { href: "/board", label: "บอร์ดงาน", icon: "board" },
-    { href: "/schedule", label: "ตารางงาน", icon: "calendar" },
+    // ตารางงานต้องล็อกอินก่อน — ไม่ต้องโชว์ให้คนที่สแกน QR เข้ามาเฉย ๆ
+    ...(user ? ([{ href: "/schedule", label: "ตารางงาน", icon: "calendar" }] as const) : []),
     ...(canPlanAndManage(user?.role)
       ? ([{ href: "/admin", label: "ผู้ดูแลระบบ", icon: "settings" }] as const)
       : []),

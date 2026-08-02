@@ -1,8 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { isOverdue, isUrgent } from "@/lib/workflow";
 import { testTitle } from "@/lib/format";
+import { guardPageUser } from "@/lib/guard";
 import WeeklySchedule, { Person, DayHead, SchedItem } from "@/components/WeeklySchedule";
 import MonthSchedule, { MonthCell, MonthItem } from "@/components/MonthSchedule";
+import type { Prisma } from "@/generated/prisma/client";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "ตารางงาน — Dodoregis" };
@@ -30,12 +32,22 @@ export default async function SchedulePage({
 }: {
   searchParams: Promise<{ view?: string; week?: string; month?: string; person?: string }>;
 }) {
+  // ตารางงานเป็นข้อมูลภายในทีม (ใครทำอะไร โหลดงานแต่ละคน) — ต้องล็อกอินก่อน
+  const user = await guardPageUser("/schedule");
+
   const sp = await searchParams;
   const view = sp.view === "week" ? "week" : "month"; // ค่าเริ่มต้น = เดือน
 
+  // requester เห็นเฉพาะงานของแผนกตัวเอง · ทีมแลป (engineer/admin) เห็นทุกงาน
+  const deptScoped = user.role === "REQUESTER" && user.departmentId != null;
+  const where: Prisma.TestItemWhereInput = {
+    status: { notIn: ["S8_CLOSED", "S10_CANCEL"] },
+    ...(deptScoped ? { request: { requestDeptId: user.departmentId! } } : {}),
+  };
+
   // งานที่ยังไม่ปิด/ยกเลิก
   const items = await prisma.testItem.findMany({
-    where: { status: { notIn: ["S8_CLOSED", "S10_CANCEL"] } },
+    where,
     include: { owner: true },
     orderBy: [{ planEnd: "asc" }, { itemCode: "asc" }],
   });

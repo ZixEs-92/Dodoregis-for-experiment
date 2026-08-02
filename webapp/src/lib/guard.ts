@@ -2,7 +2,7 @@
 // คืน null = ผ่าน, คืน string = ข้อความเหตุผลที่ถูกปฏิเสธ
 // นโยบาย: "ดู" เปิดให้ทุกคน (ไม่ต้องล็อกอิน) แต่ "แก้/สร้าง" ต้องล็อกอิน + role พอ
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, type CurrentUser } from "@/lib/auth";
 import { canCreateRequest, canEditTests, canPlanAndManage } from "@/lib/roles";
 import type { UserRole } from "@/generated/prisma/client";
 
@@ -12,6 +12,13 @@ async function currentRole(): Promise<UserRole | null> {
 }
 
 // ── ตัวกันระดับหน้า (เรียกต้น page component) — redirect ถ้าสิทธิ์ไม่พอ ──
+
+/** หน้าที่ต้องล็อกอินก่อน (role ใดก็ได้) — คืนผู้ใช้ปัจจุบันให้ใช้ต่อได้เลย */
+export async function guardPageUser(nextPath?: string): Promise<CurrentUser> {
+  const u = await getCurrentUser();
+  if (!u) redirect(nextPath ? `/login?next=${encodeURIComponent(nextPath)}` : "/login");
+  return u;
+}
 
 /** หน้าเฉพาะผู้สร้างงาน (requester+) — ไม่พอ ส่งไปหน้า login (พร้อมพากลับมาหน้าเดิมหลังล็อกอิน) */
 export async function guardPageCreate(nextPath?: string): Promise<void> {

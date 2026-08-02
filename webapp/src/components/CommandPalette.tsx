@@ -37,7 +37,9 @@ export default function CommandPalette({ role = null }: { role?: UserRole | null
       { href: "/board", label: "บอร์ดงาน", icon: "board" },
       { href: "/requests", label: "รายการงาน", icon: "list" },
       { href: "/scan", label: "สแกน QR ชิ้นงาน", icon: "scan" },
-      { href: "/schedule", label: "ตารางงาน (เดือน/สัปดาห์)", icon: "calendar" },
+      ...(role
+        ? ([{ href: "/schedule", label: "ตารางงาน (เดือน/สัปดาห์)", icon: "calendar" }] as PageCmd[])
+        : []),
       { href: "/notifications", label: "แจ้งเตือน", icon: "bell" },
       ...(canCreateRequest(role)
         ? ([{ href: "/requests/new", label: "ลงทะเบียนงานใหม่", icon: "plus" }] as PageCmd[])
