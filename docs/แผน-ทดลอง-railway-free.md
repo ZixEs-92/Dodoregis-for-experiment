@@ -3,6 +3,43 @@
 > เขียน 2026-08-02 · สำหรับ "ลองดูว่าทำได้ไหม" ไม่ใช่ย้ายระบบจริง
 > ข้อสรุปราคา/ทางเลือกอื่น ดู [แผน-ย้ายไป-nas-cloudflare.md](แผน-ย้ายไป-nas-cloudflare.md)
 
+---
+
+# ✅ ผลจริง — ทำแล้ว 2026-08-02 (ขึ้นได้ ใช้งานได้)
+
+**URL:** `https://dodoregis-for-experiment-production.up.railway.app`
+**บัญชี admin บนนั้น:** `admin` (รหัสคนละตัวกับในเครื่อง — ตั้งใหม่ให้แข็งแรงเพราะเปิดสู่อินเทอร์เน็ต)
+**แผนที่ใช้จริง:** บัญชีอยู่ในช่วง **Trial ($5 / 30 วัน)** ไม่ใช่ Free ($1/เดือน) → พอ trial หมดจะเจอเพดานตามที่คำนวณไว้ในตารางด้านล่าง
+
+### 🎯 ข้อสอบหลักผ่าน
+สร้าง user → สั่ง deploy ใหม่ → **user ยังอยู่** ⇒ **volume เก็บข้อมูลข้าม deploy ได้จริง**
+แปลว่าทางนี้ใช้งานจริงได้ ถ้ายอมจ่าย Hobby $5/เดือน · ไม่ต้องย้ายไป Postgres
+
+### กับดักที่เจอจริง (นอกเหนือจากที่เขียนไว้ล่วงหน้า)
+
+| # | อาการ | สาเหตุ | ทางแก้ |
+|---|---|---|---|
+| 1 | build ตายใน 2 วิ "could not determine how to build" | repo root ไม่มี package.json | Root Directory = `/webapp` |
+| 2 | `Can't resolve @/generated/prisma/client` | `src/generated/prisma` อยู่ใน .gitignore — เครื่อง clone ใหม่ไม่มี | เพิ่ม `"postinstall": "prisma generate"` |
+| 3 | push แล้วเงียบ ไม่มี deploy | **Auto deploy ปิดอยู่โดยปริยาย** | Settings → Source → Enable |
+| 4 | ขึ้น "Online" แต่เข้าเว็บ **502 ตลอด** | Railway ยัด `PORT=8080` (ไม่โผล่ในหน้า Variables) แต่ domain ตั้งไว้ที่ 3000 | แก้ target port ของ domain เป็น **8080** |
+| 5 | ตาราง `users` ไม่มีในฐานข้อมูล ทั้งที่ log บอกว่า migrate สำเร็จ | 🔴 **Pre-deploy command รันก่อน volume ถูก mount** — ตารางถูกสร้างในดิสก์ชั่วคราวแล้วโดน volume ทับ | ย้าย migrate ไปไว้ใน **start command**: `npx prisma migrate deploy && npm run start` |
+
+> ข้อ 5 คือกับดักที่อันตรายที่สุด และ**ไม่มีในแผนตอนแรก** — ถ้าไม่เจอตอนทดลอง จะไปเจอตอนย้ายข้อมูลจริงซึ่งแก้ยากกว่ามาก
+
+### ค่าตั้งสุดท้ายที่ใช้งานได้
+- Root Directory `/webapp` · Auto deploy: on (branch `main`)
+- Start command: `npx prisma migrate deploy && npm run start` · **ไม่มี pre-deploy**
+- Volume `/data` · Domain → port **8080**
+- Variables: `DATABASE_URL=file:/data/dev.db` · `UPLOAD_DIR=/data/uploads` · `AUTH_SECRET` · `QR_MODE=code` · `TZ=Asia/Bangkok`
+
+### ยังไม่ได้ทำ
+- ยังไม่ได้ย้ายข้อมูลจริงขึ้น (ตั้งใจ — ดูเหตุผลข้อ D)
+- ยังไม่มี master data (แผนก/สมาชิก/ที่เก็บ) บนนั้น → ต้องกรอกเองถ้าจะทดสอบ flow เต็ม
+- ยังไม่ได้เปิด App Sleeping → ยังไม่ได้วัดค่าใช้จ่ายจริงแบบ 8 ชม./วัน
+
+---
+
 ## สรุปคำตอบสั้น
 
 | คำถาม | คำตอบ |
