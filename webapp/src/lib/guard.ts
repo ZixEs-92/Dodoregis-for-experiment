@@ -12,24 +12,42 @@ async function currentRole(): Promise<UserRole | null> {
 }
 
 // ── ตัวกันระดับหน้า (เรียกต้น page component) — redirect ถ้าสิทธิ์ไม่พอ ──
+// ยังไม่ล็อกอิน → ไปหน้า login พร้อม ?next= เพื่อพากลับมาหน้าเดิม (สำคัญกับ flow สแกน QR)
+// ล็อกอินแล้วแต่ role ไม่พอ → กลับหน้าหลัก (ไปหน้า login ซ้ำไม่ช่วยอะไร)
+
+function toLogin(nextPath?: string): never {
+  redirect(nextPath ? `/login?next=${encodeURIComponent(nextPath)}` : "/login");
+}
 
 /** หน้าที่ต้องล็อกอินก่อน (role ใดก็ได้) — คืนผู้ใช้ปัจจุบันให้ใช้ต่อได้เลย */
 export async function guardPageUser(nextPath?: string): Promise<CurrentUser> {
   const u = await getCurrentUser();
-  if (!u) redirect(nextPath ? `/login?next=${encodeURIComponent(nextPath)}` : "/login");
+  if (!u) toLogin(nextPath);
   return u;
 }
 
-/** หน้าเฉพาะผู้สร้างงาน (requester+) — ไม่พอ ส่งไปหน้า login (พร้อมพากลับมาหน้าเดิมหลังล็อกอิน) */
-export async function guardPageCreate(nextPath?: string): Promise<void> {
-  if (!canCreateRequest(await currentRole())) {
-    redirect(nextPath ? `/login?next=${encodeURIComponent(nextPath)}` : "/login");
-  }
+/** หน้าเฉพาะผู้สร้างงาน (requester+) */
+export async function guardPageCreate(nextPath?: string): Promise<CurrentUser> {
+  const u = await getCurrentUser();
+  if (!u) toLogin(nextPath);
+  if (!canCreateRequest(u.role)) redirect("/");
+  return u;
 }
 
-/** หน้าเฉพาะ admin — ไม่พอ ส่งกลับหน้าหลัก */
-export async function guardPageAdmin(): Promise<void> {
-  if (!canPlanAndManage(await currentRole())) redirect("/");
+/** หน้าของทีมแลป (engineer + admin) — เช่น รายงาน/วิเคราะห์/พิมพ์ label */
+export async function guardPageTeam(nextPath?: string): Promise<CurrentUser> {
+  const u = await getCurrentUser();
+  if (!u) toLogin(nextPath);
+  if (!canEditTests(u.role)) redirect("/");
+  return u;
+}
+
+/** หน้าเฉพาะ admin */
+export async function guardPageAdmin(nextPath?: string): Promise<CurrentUser> {
+  const u = await getCurrentUser();
+  if (!u) toLogin(nextPath);
+  if (!canPlanAndManage(u.role)) redirect("/");
+  return u;
 }
 
 /** ต้องล็อกอิน (role ใดก็ได้) */

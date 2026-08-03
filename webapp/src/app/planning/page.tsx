@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth";
+import { guardPageAdmin } from "@/lib/guard";
 import { isUrgent } from "@/lib/workflow";
 import { testTitle } from "@/lib/format";
 import PlanningQueue, { QueueItem } from "@/components/PlanningQueue";
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "คิวรอวางแผน — Dodoregis" };
 
 export default async function PlanningPage() {
-  await requireRole("ADMIN");
+  await guardPageAdmin("/planning");
 
   // งานที่ยังไม่มอบหมายและยังไม่จบ/ยกเลิก — เรียงใบเก่าสุดก่อน
   const [items, members] = await Promise.all([

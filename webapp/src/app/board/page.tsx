@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/auth";
-import { canEditTests } from "@/lib/roles";
+import { guardPageUser } from "@/lib/guard";
+import { canEditTests, isDeptScoped } from "@/lib/roles";
 import { isOverdue, isUrgent } from "@/lib/workflow";
 import { testTitle } from "@/lib/format";
 import { toDisplayDate } from "@/lib/date";
@@ -18,14 +18,14 @@ export default async function BoardPage({
 }) {
   const { layout: layoutParam } = await searchParams;
   const layout: BoardLayout = layoutParam === "columns" ? "columns" : "rows";
-  const user = await getCurrentUser();
-  const canEdit = canEditTests(user?.role ?? null);
+  const user = await guardPageUser("/board");
+  const canEdit = canEditTests(user.role);
 
   // requester เห็นเฉพาะแผนกตัวเอง เหมือนหน้ารายการงาน
-  const deptScoped = user?.role === "REQUESTER" && user.departmentId != null;
+  const deptScoped = isDeptScoped(user.role, user.departmentId);
   const where: Prisma.TestItemWhereInput = {
     status: { notIn: ["S10_CANCEL"] },
-    ...(deptScoped ? { request: { requestDeptId: user!.departmentId! } } : {}),
+    ...(deptScoped ? { request: { requestDeptId: user.departmentId! } } : {}),
   };
 
   const items = await prisma.testItem.findMany({

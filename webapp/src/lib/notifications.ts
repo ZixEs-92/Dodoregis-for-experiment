@@ -106,6 +106,14 @@ export async function notifyNewRequest(opts: {
   });
 }
 
-export async function getUnreadCount(): Promise<number> {
-  return prisma.notification.count({ where: { readAt: null } });
+/** จำนวนแจ้งเตือนที่ยังไม่อ่าน — ส่ง departmentId มาถ้าเป็นผู้ขอทดสอบ (นับเฉพาะแผนกตัวเอง) */
+export async function getUnreadCount(departmentId?: number | null): Promise<number> {
+  return prisma.notification.count({
+    where: {
+      readAt: null,
+      ...(departmentId != null
+        ? { item: { request: { requestDeptId: departmentId } } }
+        : {}),
+    },
+  });
 }

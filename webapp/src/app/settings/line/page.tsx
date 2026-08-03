@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "ตั้งค่าแจ้งเตือน LINE — Dodoregis" };
 
 export default async function LineSettingsPage() {
-  await guardPageAdmin();
+  await guardPageAdmin("/settings/line");
   const cfg = lineConfig();
   const ready = cfg.hasToken && cfg.hasDestination;
 

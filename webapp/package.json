@@ -10,12 +10,14 @@
     "lint": "eslint",
     "db:clear": "tsx prisma/clear.ts",
     "notify": "tsx prisma/notify.ts",
-    "create-user": "tsx prisma/create-user.ts"
+    "create-user": "tsx prisma/create-user.ts",
+    "backup": "node scripts/backup.mjs"
   },
   "dependencies": {
     "@prisma/adapter-better-sqlite3": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^12.11.1",
     "jose": "^6.2.5",
     "jsqr": "^1.4.0",
     "next": "16.2.10",

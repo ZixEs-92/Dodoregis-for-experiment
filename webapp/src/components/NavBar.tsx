@@ -14,7 +14,6 @@ const baseLinks = [
   { href: "/board", label: "บอร์ดงาน" },
   { href: "/requests", label: "รายการงาน" },
 ];
-// ตารางงานเป็นข้อมูลภายในทีม — ซ่อนจากคนที่ยังไม่ล็อกอิน (หน้าเองก็กันอีกชั้น)
 const memberLinks = [{ href: "/schedule", label: "ตารางงาน" }];
 const adminLinks = [{ href: "/admin", label: "ผู้ดูแลระบบ" }];
 
@@ -26,11 +25,10 @@ export default function NavBar({
   user?: { name: string; role: UserRole } | null;
 }) {
   const pathname = usePathname();
-  const links = [
-    ...baseLinks,
-    ...(user ? memberLinks : []),
-    ...(user?.role === "ADMIN" ? adminLinks : []),
-  ];
+  // ทั้งระบบต้องล็อกอิน — ยังไม่ล็อกอินก็ไม่ต้องโชว์เมนู เพราะกดไปก็เด้งกลับมาหน้านี้
+  const links = user
+    ? [...baseLinks, ...memberLinks, ...(user.role === "ADMIN" ? adminLinks : [])]
+    : [];
 
   return (
     <header className="sticky top-0 z-20 bg-canvas border-b border-hairline">
@@ -64,7 +62,9 @@ export default function NavBar({
           </nav>
 
           <div className="flex items-center gap-2 shrink-0">
-            <CommandPalette role={user?.role ?? null} />
+            {user && (
+              <>
+            <CommandPalette role={user.role} />
 
             <Link
               href="/scan"
@@ -93,11 +93,13 @@ export default function NavBar({
               )}
             </Link>
 
-            {canCreateRequest(user?.role) && (
+            {canCreateRequest(user.role) && (
               <Link href="/requests/new" className="btn-primary btn-sm hidden sm:inline-flex">
                 <Icon name="plus" size={16} />
                 ลงงานใหม่
               </Link>
+            )}
+              </>
             )}
 
             {user ? (

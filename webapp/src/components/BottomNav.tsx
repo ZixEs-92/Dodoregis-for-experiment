@@ -40,12 +40,14 @@ export default function BottomNav({
 
   const moreLinks: { href: string; label: string; icon: IconName }[] = [
     { href: "/board", label: "บอร์ดงาน", icon: "board" },
-    // ตารางงานต้องล็อกอินก่อน — ไม่ต้องโชว์ให้คนที่สแกน QR เข้ามาเฉย ๆ
-    ...(user ? ([{ href: "/schedule", label: "ตารางงาน", icon: "calendar" }] as const) : []),
+    { href: "/schedule", label: "ตารางงาน", icon: "calendar" },
     ...(canPlanAndManage(user?.role)
       ? ([{ href: "/admin", label: "ผู้ดูแลระบบ", icon: "settings" }] as const)
       : []),
   ];
+
+  // ทุกหน้าต้องล็อกอิน — ที่หน้า login ไม่ต้องมีแถบเมนูล่าง (กดไปก็เด้งกลับ)
+  if (!user) return null;
 
   return (
     <>

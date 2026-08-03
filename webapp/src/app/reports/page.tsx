@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { guardPageTeam } from "@/lib/guard";
 import {
   getAllReportItems,
   availableYears,
@@ -26,6 +27,7 @@ export default async function ReportsPage({
 }: {
   searchParams: Promise<{ year?: string; month?: string }>;
 }) {
+  await guardPageTeam("/reports");
   const sp = await searchParams;
   const all = await getAllReportItems();
   const years = availableYears(all);

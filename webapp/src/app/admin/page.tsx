@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth";
+import { guardPageAdmin } from "@/lib/guard";
 import { isOverdue } from "@/lib/workflow";
 import Icon, { type IconName } from "@/components/ui/Icon";
 
@@ -12,7 +12,7 @@ export const metadata = { title: "ผู้ดูแลระบบ — Dodoregi
  * แต่ละการ์ดพ่วงตัวเลขจริงไว้ให้เห็นว่ามีอะไรต้องจัดการก่อนกดเข้าไป
  */
 export default async function AdminHubPage() {
-  await requireRole("ADMIN");
+  await guardPageAdmin("/admin");
 
   const [unassigned, activeItems, userCount, deptCount, requestCount] = await Promise.all([
     prisma.testItem.count({

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { guardPageTeam } from "@/lib/guard";
 import {
   STATUS_ORDER,
   STATUS_LABEL,
@@ -35,6 +36,7 @@ export default async function AnalyticsPage({
 }: {
   searchParams: Promise<{ range?: string }>;
 }) {
+  await guardPageTeam("/analytics");
   const sp = await searchParams;
   const range: Range = sp.range === "month" || sp.range === "all" ? sp.range : "30d";
   const now = new Date();

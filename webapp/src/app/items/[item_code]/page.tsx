@@ -15,8 +15,8 @@ import {
 import { leadTime, slaStatus, SLA_STATUS_LABEL, SLA_STATUS_COLOR } from "@/lib/tat";
 import { requestRollup, PHASE_LABEL, PHASE_COLOR } from "@/lib/rollup";
 import { testTitle, isHttpUrl } from "@/lib/format";
-import { getCurrentUser } from "@/lib/auth";
-import { canAttachToRequest, canEditTests } from "@/lib/roles";
+import { guardPageUser } from "@/lib/guard";
+import { canAttachToRequest, canEditTests, canViewRequest } from "@/lib/roles";
 import CopyButton from "@/components/CopyButton";
 import Icon from "@/components/ui/Icon";
 import StatusBadge from "@/components/StatusBadge";
@@ -51,6 +51,9 @@ export default async function ItemDetailPage({
   const { item_code } = await params;
   const itemCode = decodeURIComponent(item_code);
 
+  // สแกน QR ที่ชิ้นงานมาตรงนี้ได้ แต่ต้องล็อกอินก่อน (พากลับมาที่งานเดิมหลังล็อกอิน)
+  const currentUser = await guardPageUser(`/items/${itemCode}`);
+
   const item = await prisma.testItem.findUnique({
     where: { itemCode },
     include: {
@@ -74,6 +77,10 @@ export default async function ItemDetailPage({
   });
 
   if (!item) notFound();
+  // ผู้ขอทดสอบเปิดงานของแผนกอื่นไม่ได้ — ตอบ 404 เหมือนไม่มีรายการนี้
+  if (!canViewRequest(currentUser.role, currentUser.departmentId, item.request.requestDeptId)) {
+    notFound();
+  }
 
   const [members, partLocations, finishedLocations] = await Promise.all([
     prisma.member.findMany({ orderBy: { name: "asc" } }),
@@ -93,13 +100,12 @@ export default async function ItemDetailPage({
   const lead = leadTime(item.request.requestDate, sentDate);
   const sla = slaStatus(lead.days, lead.done, slaDays);
 
-  // สิทธิ์: viewer (ไม่ล็อกอิน) เห็นอย่างเดียว, engineer ขึ้นไปแก้ได้
-  const currentUser = await getCurrentUser();
-  const canEdit = canEditTests(currentUser?.role ?? null);
+  // สิทธิ์: viewer/requester เห็นอย่างเดียว, engineer ขึ้นไปแก้ได้
+  const canEdit = canEditTests(currentUser.role);
   // ผู้ขอทดสอบแนบไฟล์เพิ่มในงานของแผนกตัวเองได้ แต่ลบไม่ได้
   const canAttach = canAttachToRequest(
-    currentUser?.role,
-    currentUser?.departmentId,
+    currentUser.role,
+    currentUser.departmentId,
     item.request.requestDeptId,
   );
 

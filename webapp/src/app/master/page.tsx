@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "ตั้งค่าข้อมูลระบบ — Dodoregis" };
 
 export default async function MasterPage() {
-  await guardPageAdmin();
+  await guardPageAdmin("/master");
   const [departments, members, partLocations, finishedLocations] = await Promise.all([
     prisma.department.findMany({ orderBy: { name: "asc" } }),
     prisma.member.findMany({ orderBy: { name: "asc" } }),

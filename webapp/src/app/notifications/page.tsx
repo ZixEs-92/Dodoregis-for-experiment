@@ -2,6 +2,8 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { generateDueNotifications } from "@/lib/notifications";
 import { markNotificationRead, markAllNotificationsRead } from "@/app/actions";
+import { guardPageUser } from "@/lib/guard";
+import { canEditTests, canPlanAndManage, isDeptScoped } from "@/lib/roles";
 import { toDisplayDateTime } from "@/lib/date";
 import { NotificationLevel } from "@/generated/prisma/client";
 
@@ -20,10 +22,19 @@ const LEVEL_LABEL: Record<NotificationLevel, string> = {
 };
 
 export default async function NotificationsPage() {
-  // เปิดหน้านี้ = รีเฟรชแจ้งเตือนงานเลย/ใกล้กำหนด (กันซ้ำรายวันในตัว)
-  await generateDueNotifications().catch(() => {});
+  const user = await guardPageUser("/notifications");
+  const isTeam = canEditTests(user.role);
 
+  // เปิดหน้านี้ = รีเฟรชแจ้งเตือนงานเลย/ใกล้กำหนด (กันซ้ำรายวันในตัว)
+  // ให้เฉพาะทีมแลปเป็นคนจุด — ผู้ขอทดสอบไม่ควรเขียนข้อมูลของทั้งแลป
+  if (isTeam) await generateDueNotifications().catch(() => {});
+
+  // ผู้ขอทดสอบเห็นเฉพาะแจ้งเตือนของงานในแผนกตัวเอง
+  const deptScoped = isDeptScoped(user.role, user.departmentId);
   const notifications = await prisma.notification.findMany({
+    where: deptScoped
+      ? { item: { request: { requestDeptId: user.departmentId! } } }
+      : {},
     include: { item: true },
     orderBy: [{ readAt: "asc" }, { createdAt: "desc" }],
     take: 200,
@@ -40,8 +51,10 @@ export default async function NotificationsPage() {
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <Link href="/settings/line" className="btn-secondary btn-sm">⚙️ ตั้งค่า LINE</Link>
-          {unread > 0 && (
+          {canPlanAndManage(user.role) && (
+            <Link href="/settings/line" className="btn-secondary btn-sm">⚙️ ตั้งค่า LINE</Link>
+          )}
+          {unread > 0 && isTeam && (
             <form action={markAllNotificationsRead}>
               <button type="submit" className="btn-secondary btn-sm">ทำเครื่องหมายอ่านทั้งหมด</button>
             </form>

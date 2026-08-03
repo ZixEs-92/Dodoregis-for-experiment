@@ -4,18 +4,16 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import bcrypt from "bcryptjs";
-import { SignJWT, jwtVerify } from "jose";
 import { prisma } from "@/lib/prisma";
+import {
+  SESSION_COOKIE,
+  SESSION_MAX_AGE_SECONDS as MAX_AGE_SECONDS,
+  signSessionToken,
+  verifySessionToken,
+} from "@/lib/session";
 import type { UserRole } from "@/generated/prisma/client";
 
-export const SESSION_COOKIE = "dodoregis_session";
-const MAX_AGE_SECONDS = 8 * 60 * 60; // 8 ชั่วโมง
-
-function getSecret(): Uint8Array {
-  const s = process.env.AUTH_SECRET;
-  if (!s) throw new Error("AUTH_SECRET ไม่ได้ตั้งค่าใน .env");
-  return new TextEncoder().encode(s);
-}
+export { SESSION_COOKIE };
 
 // ── รหัสผ่าน ──
 export function hashPassword(pw: string): Promise<string> {
@@ -31,12 +29,7 @@ export async function signSession(user: {
   role: UserRole;
   displayName: string;
 }): Promise<string> {
-  return new SignJWT({ role: user.role, name: user.displayName })
-    .setProtectedHeader({ alg: "HS256" })
-    .setSubject(String(user.id))
-    .setIssuedAt()
-    .setExpirationTime(`${MAX_AGE_SECONDS}s`)
-    .sign(getSecret());
+  return signSessionToken(user);
 }
 
 export async function setSessionCookie(token: string): Promise<void> {
@@ -57,15 +50,7 @@ export async function clearSessionCookie(): Promise<void> {
 
 async function readPayload(): Promise<{ uid: number } | null> {
   const c = await cookies();
-  const token = c.get(SESSION_COOKIE)?.value;
-  if (!token) return null;
-  try {
-    const { payload } = await jwtVerify(token, getSecret());
-    const uid = Number(payload.sub);
-    return uid ? { uid } : null;
-  } catch {
-    return null; // token หมดอายุ/ปลอม
-  }
+  return verifySessionToken(c.get(SESSION_COOKIE)?.value);
 }
 
 /** ผู้ใช้ปัจจุบันจาก session (null ถ้ายังไม่ล็อกอิน) — cache ต่อ 1 request */

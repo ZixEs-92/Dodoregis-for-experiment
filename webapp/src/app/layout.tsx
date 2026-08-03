@@ -6,6 +6,7 @@ import BottomNav from "@/components/BottomNav";
 import UiProvider from "@/components/ui/Feedback";
 import { getUnreadCount } from "@/lib/notifications";
 import { getCurrentUser } from "@/lib/auth";
+import { isDeptScoped } from "@/lib/roles";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -30,11 +31,18 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const unreadCount = await getUnreadCount().catch(() => 0);
   const currentUser = await getCurrentUser().catch(() => null);
   const navUser = currentUser
     ? { name: currentUser.displayName, role: currentUser.role }
     : null;
+  // ยังไม่ล็อกอิน = อยู่หน้า login เท่านั้น ไม่ต้องยิง query · requester นับเฉพาะแผนกตัวเอง
+  const unreadCount = currentUser
+    ? await getUnreadCount(
+        isDeptScoped(currentUser.role, currentUser.departmentId)
+          ? currentUser.departmentId
+          : null,
+      ).catch(() => 0)
+    : 0;
 
   return (
     <html lang="th" className={`${inter.variable} ${notoThai.variable} h-full antialiased`}>

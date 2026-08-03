@@ -1,19 +1,38 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { readStoredFile } from "@/lib/uploads";
+import { getCurrentUser } from "@/lib/auth";
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // id เป็นเลขเรียง — ถ้าไม่กัน ใครก็ไล่โหลดไฟล์แนบทุกใบได้
+  const user = await getCurrentUser();
+  if (!user) return new Response("กรุณาเข้าสู่ระบบก่อน", { status: 401 });
+
   const { id } = await params;
   const attId = Number(id);
   if (!Number.isInteger(attId)) {
     return new Response("Not found", { status: 404 });
   }
 
-  const att = await prisma.attachment.findUnique({ where: { id: attId } });
+  const att = await prisma.attachment.findUnique({
+    where: { id: attId },
+    include: {
+      request: { select: { requestDeptId: true } },
+      item: { select: { request: { select: { requestDeptId: true } } } },
+    },
+  });
   if (!att) return new Response("Not found", { status: 404 });
+
+  // ผู้ขอทดสอบเปิดได้เฉพาะไฟล์ของใบในแผนกตัวเอง
+  if (user.role === "REQUESTER") {
+    const deptId = att.request?.requestDeptId ?? att.item?.request?.requestDeptId ?? null;
+    if (deptId == null || deptId !== user.departmentId) {
+      return new Response("ไม่มีสิทธิ์เปิดไฟล์นี้", { status: 403 });
+    }
+  }
 
   // ลิงก์ภายนอก → redirect
   if (att.url) redirect(att.url);

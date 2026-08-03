@@ -49,3 +49,6 @@ dev.db.bak*
 
 # uploaded attachment files
 /uploads
+
+# สำเนาสำรอง (npm run backup)
+/backups

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth";
+import { guardPageAdmin } from "@/lib/guard";
 import UsersManager, { UserRow } from "@/components/UsersManager";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +19,7 @@ function fmtDateTime(d: Date | null): string | null {
 }
 
 export default async function UsersPage() {
-  const me = await requireRole("ADMIN");
+  const me = await guardPageAdmin("/settings/users");
 
   const [users, departments, members] = await Promise.all([
     prisma.user.findMany({

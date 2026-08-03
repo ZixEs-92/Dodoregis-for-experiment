@@ -34,6 +34,26 @@ export function canPlanAndManage(role: UserRole | null | undefined): boolean {
 }
 
 /**
+ * ผู้ขอทดสอบเห็นได้เฉพาะงานแผนกตัวเอง — role อื่น (admin/engineer/viewer) เห็นทั้งหมด
+ * ใช้ตัดสินใจว่าจะใส่ตัวกรอง requestDeptId ลงใน query หรือไม่
+ */
+export function isDeptScoped(
+  role: UserRole | null | undefined,
+  userDeptId: number | null | undefined,
+): boolean {
+  return role === "REQUESTER" && userDeptId != null;
+}
+
+/** เปิดดูใบรีเควส/รายการทดสอบใบนี้ได้ไหม (ใช้กับหน้ารายละเอียดที่เข้าตรงด้วย URL/QR) */
+export function canViewRequest(
+  role: UserRole | null | undefined,
+  userDeptId: number | null | undefined,
+  requestDeptId: number,
+): boolean {
+  return !isDeptScoped(role, userDeptId) || userDeptId === requestDeptId;
+}
+
+/**
  * แนบไฟล์เข้าใบรีเควส — ทีมแลปแนบได้ทุกใบ, ผู้ขอทดสอบแนบได้เฉพาะใบของแผนกตัวเอง
  * (เขาเป็นคนถืออีเมลต้นเรื่อง/ใบรีเควสตัวจริง/รูปชิ้นงาน) · ฝั่ง server บังคับซ้ำที่ assertCanEditRequest
  */

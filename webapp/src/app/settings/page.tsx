@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth";
+import { guardPageAdmin } from "@/lib/guard";
 import { lineConfig } from "@/lib/line";
 import Icon, { type IconName } from "@/components/ui/Icon";
 
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "ตั้งค่าระบบ — Dodoregis" };
 
 export default async function SettingsHubPage() {
-  await requireRole("ADMIN");
+  await guardPageAdmin("/settings");
 
   const [deptCount, memberCount, partLocCount, finishedLocCount, userCount] =
     await Promise.all([

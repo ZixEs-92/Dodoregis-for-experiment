@@ -1,4 +1,6 @@
 import { toCsv } from "@/lib/csv";
+import { getCurrentUser } from "@/lib/auth";
+import { canEditTests } from "@/lib/roles";
 import {
   getAllReportItems,
   getAllRunRows,
@@ -29,6 +31,13 @@ export const dynamic = "force-dynamic";
  * ทุกไฟล์เป็น UTF-8 + BOM เปิดใน Excel ภาษาไทยไม่เพี้ยน
  */
 export async function GET(request: Request) {
+  // ไฟล์นี้คือข้อมูลทั้งปีทุกแผนก — เปิดให้เฉพาะทีมแลป
+  const user = await getCurrentUser();
+  if (!user) return new Response("กรุณาเข้าสู่ระบบก่อน", { status: 401 });
+  if (!canEditTests(user.role)) {
+    return new Response("เฉพาะทีมแลปเท่านั้น", { status: 403 });
+  }
+
   const url = new URL(request.url);
   const year = Number(url.searchParams.get("year"));
   const monthRaw = url.searchParams.get("month");

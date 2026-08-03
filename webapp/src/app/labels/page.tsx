@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { guardPageTeam } from "@/lib/guard";
 import { generateQrDataUrl, qrMode } from "@/lib/qr";
 import PrintButton from "@/components/PrintButton";
 
@@ -10,6 +11,7 @@ export default async function LabelsPage({
 }: {
   searchParams: Promise<{ ids?: string; regis?: string }>;
 }) {
+  await guardPageTeam("/labels");
   const sp = await searchParams;
   const regisList = (sp.regis ?? "").split(",").map((s) => s.trim()).filter(Boolean);
   const ids = (sp.ids ?? "").split(",").map((s) => s.trim()).filter(Boolean);

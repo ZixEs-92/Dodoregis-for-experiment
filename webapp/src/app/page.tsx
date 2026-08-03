@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import {
   ALL_STATUSES,
@@ -11,7 +10,7 @@ import {
 } from "@/lib/workflow";
 import LoadingBoard, { LoadItem } from "@/components/LoadingBoard";
 import { requestRollup, RequestPhase } from "@/lib/rollup";
-import { getCurrentUser } from "@/lib/auth";
+import { guardPageUser } from "@/lib/guard";
 import RequesterHome from "@/components/home/RequesterHome";
 import MyWorkBlock from "@/components/home/MyWorkBlock";
 import DepartmentBreakdown from "@/components/home/DepartmentBreakdown";
@@ -20,10 +19,8 @@ import Icon from "@/components/ui/Icon";
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  // หน้าต่างแรกของแอปคือหน้า login (ประตูทางเข้า) — ยังไม่ล็อกอินให้ไปที่นั่นก่อน
-  // (หน้าดูงานอื่น ๆ เช่น /items /requests ยังเปิดให้ดูได้โดยไม่ล็อกอิน สำหรับสแกน QR)
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  // ทั้งระบบต้องล็อกอิน — หน้า login คือประตูทางเข้าเดียว (รวมถึงคนที่สแกน QR มา)
+  const user = await guardPageUser();
 
   // หน้าแรกต่างกันตามบทบาท — คนส่งงานไม่ควรต้องเจอ KPI ภายในของทีมแลป
   if (user.role === "REQUESTER") {

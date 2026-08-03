@@ -11,8 +11,13 @@ import AddItemForm from "@/components/AddItemForm";
 import RequestParts from "@/components/RequestParts";
 import AttachmentsSection from "@/components/AttachmentsSection";
 import { addItem, uploadAttachment } from "@/app/actions";
-import { getCurrentUser } from "@/lib/auth";
-import { canAttachToRequest, canCreateRequest, canEditTests } from "@/lib/roles";
+import { guardPageUser } from "@/lib/guard";
+import {
+  canAttachToRequest,
+  canCreateRequest,
+  canEditTests,
+  canViewRequest,
+} from "@/lib/roles";
 
 export async function generateMetadata({
   params,
@@ -31,6 +36,9 @@ export default async function RequestOverviewPage({
   const { regis_no } = await params;
   const regisNo = decodeURIComponent(regis_no);
 
+  // เข้าหน้านี้ตรงจาก QR ได้ แต่ต้องล็อกอินก่อน (พากลับมาที่ใบเดิมหลังล็อกอิน)
+  const currentUser = await guardPageUser(`/requests/${regisNo}`);
+
   const request = await prisma.testRequest.findUnique({
     where: { regisNo },
     include: {
@@ -45,6 +53,10 @@ export default async function RequestOverviewPage({
   });
 
   if (!request) notFound();
+  // ผู้ขอทดสอบเดา URL ใบของแผนกอื่นไม่ได้ — ตอบ 404 เหมือนไม่มีใบนี้ ไม่บอกว่ามีอยู่
+  if (!canViewRequest(currentUser.role, currentUser.departmentId, request.requestDeptId)) {
+    notFound();
+  }
 
   const members = await prisma.member.findMany({
     where: { active: true },
@@ -57,12 +69,11 @@ export default async function RequestOverviewPage({
   const addItemBound = addItem.bind(null, regisNo);
   const uploadBound = uploadAttachment.bind(null, { requestNo: regisNo });
 
-  const currentUser = await getCurrentUser();
-  const canCreate = canCreateRequest(currentUser?.role ?? null);
-  const canEdit = canEditTests(currentUser?.role ?? null);
+  const canCreate = canCreateRequest(currentUser.role);
+  const canEdit = canEditTests(currentUser.role);
   const canAttach = canAttachToRequest(
-    currentUser?.role,
-    currentUser?.departmentId,
+    currentUser.role,
+    currentUser.departmentId,
     request.requestDeptId,
   );
 
