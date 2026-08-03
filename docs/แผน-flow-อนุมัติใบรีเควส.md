@@ -41,15 +41,26 @@ export function isDeptScoped(role, userDeptId) {
 ใช้อยู่ 5 จุด: `layout.tsx` · `requests/page.tsx` · `board/page.tsx` · `notifications/page.tsx` · `api/search/route.ts`
 (บวก `canViewRequest` ที่ `requests/[regis]` และ `items/[code]` ใช้)
 
-### 🟠 F3 — `canEditTests()` ถูกใช้ปน 2 ความหมาย
+### 🟠 F3 — `canPlanAndManage()` ถูกใช้ปน 2 ความหมาย (**ตัวนี้ยังต้องแก้**)
 
 | ใช้ที่ | ความหมายที่ต้องการจริง ๆ |
 |---|---|
-| `items/[code]`, `board`, `notifications`, `requests/[regis]` | **"แก้ผลเทสได้"** |
-| `analytics`, `reports`, `labels`, `api/export`, `guardPageTeam` | **"เป็นทีมแลป เห็นได้ทุกแผนก"** |
+| `guard.ts: ensurePlanManage`, `planItem`, `planItemsBulk`, `/planning` | **"วางแผน/มอบหมายงานได้"** |
+| `/master`, `/settings/*`, `addMaster`, `setDepartmentSla`, `sendLineTest` | **"จัดการระบบได้"** |
 
-ตอนนี้สองอย่างนี้เป็นคนกลุ่มเดียวกันเลยไม่มีปัญหา แต่ `LAB_HEAD` คือคนที่
-**เห็นได้ทุกแผนก แต่ไม่ควรไปแก้ผลเทส** → ถ้าไม่แยกฟังก์ชันก่อน จะเลือกไม่ได้ว่าจะให้สิทธิ์อันไหน
+`LAB_HEAD` ต้อง **วางแผนได้ แต่ไม่ยุ่ง master data/ผู้ใช้** → ถ้าไม่แยกฟังก์ชันก่อน จะให้สิทธิ์แบบครึ่ง ๆ ไม่ได้
+ใช้อยู่ 7 จุด: `guard.ts` ×3 · `NavBar` · `BottomNav` ×2 · `CommandPalette` ×2 · `notifications/page.tsx`
+
+#### 🟢 F3b — `canEditTests()` ก็ใช้ปน 2 ความหมายเหมือนกัน (แต่**ไม่ใช่บั๊ก**แล้ว)
+
+| ใช้ที่ | ความหมายที่ต้องการ |
+|---|---|
+| `items/[code]`, `board`, `notifications`, `requests/[regis]` | "แก้ผลเทสได้" |
+| `analytics`, `reports`, `labels`, `api/export`, `guardPageTeam` | "เป็นทีมแลป เข้าหน้ารายงานได้" |
+
+เดิมผมจัดตัวนี้เป็นปัญหาแดง เพราะคิดว่า `LAB_HEAD` จะเป็นคนที่ *ดูได้ทุกอย่างแต่แก้ผลเทสไม่ได้*
+**ผู้ใช้เคาะแล้วว่าหัวหน้าแลปแก้ผลเทสได้ด้วย** → สมาชิกของสองชุดนี้เท่ากันพอดี ไม่มีสิทธิ์ผิดพลาดแล้ว
+ยัง**แนะนำให้แยกชื่อฟังก์ชัน**อยู่ (คำถามคนละคำถาม เผื่อวันหลังเพิ่ม role ที่ดูได้แต่แก้ไม่ได้) แต่เป็นเรื่องความชัดเจน ไม่ใช่ของที่พังถ้าไม่ทำ
 
 ### 🟡 F4 — `markNotificationRead()` กันแค่ "ล็อกอินแล้ว"
 
@@ -138,14 +149,13 @@ model Department {
 | ลงงานใหม่ | ✅ | ✅ | ✅ | ✅ เลือกจากแผนกที่คุม | ✅ แผนกตัวเอง | ❌ |
 | **อนุมัติชั้น 1 (แผนก)** | ✅ แทนได้ | ❌ | ❌ | ✅ เฉพาะแผนกที่คุม | ❌ | ❌ |
 | **อนุมัติชั้น 2 (แลป)** | ✅ แทนได้ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| แก้สถานะ/ผลเทส/รีพอร์ท | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| แก้สถานะ/ผลเทส/รีพอร์ท | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | วางแผน/มอบหมายงาน | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | ดู analytics/reports/labels | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | จัดการ master data / ผู้ใช้ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 
-**2 ช่องที่ผมตัดสินใจเอง — ทักได้ถ้าไม่ใช่:**
-- `LAB_HEAD` **วางแผน/มอบหมายงานได้** — หัวหน้าแลปคือคนที่รู้ว่าใครว่าง การให้เซ็นรับงานแล้วมอบหมายต่อไม่ได้ดูขัดกับความจริง
-- `LAB_HEAD` **แก้ผลเทสไม่ได้** — ตรงตามที่คุณบอก ("อนุมัติได้ ดูงานทั้งหมดได้") ถ้าอยากให้แก้ด้วยเปลี่ยนบรรทัดเดียว
+**สรุปสั้น ๆ: `LAB_HEAD` = `ENGINEER` + อนุมัติชั้น 2 + วางแผน/มอบหมาย** (ผู้ใช้ยืนยัน 3 ส.ค. 2026)
+ต่างจาก `ADMIN` ตรงที่**ไม่ยุ่ง master data / จัดการผู้ใช้ / ตั้งค่าระบบ**
 
 ### 2.3 ฟังก์ชันสิทธิ์ที่ต้องมี (แทนของเดิม)
 
@@ -182,12 +192,16 @@ export function canViewRequest(s: Scope, requestDeptId: number): boolean {
   return ids === null || ids.includes(requestDeptId);
 }
 
-/** แก้สถานะ/ลงผลเทส/รีพอร์ท — แก้ F3: ความหมายแคบลง ไม่รวม LAB_HEAD */
+/** แก้สถานะ/ลงผลเทส/รีพอร์ท */
 export function canEditTests(role): boolean {
-  return hasRole(role, "ADMIN", "ENGINEER");
+  return hasRole(role, "ADMIN", "LAB_HEAD", "ENGINEER");
 }
 
-/** ทีมแลป: เห็นได้ทุกแผนก + เข้า analytics/reports/labels/export — ใหม่ (แก้ F3) */
+/**
+ * ทีมแลป: เข้า analytics / reports / labels / api-export ได้
+ * วันนี้สมาชิกเท่ากับ canEditTests พอดี — แยกชื่อไว้เพราะเป็นคนละคำถาม
+ * (ถ้าวันหลังมี role ที่ "ดูรายงานได้แต่แก้ผลเทสไม่ได้" จะแก้ที่นี่ที่เดียว)
+ */
 export function canViewLabWide(role): boolean {
   return hasRole(role, "ADMIN", "LAB_HEAD", "ENGINEER");
 }
@@ -446,9 +460,10 @@ model Department {
 8. **ไล่เปลี่ยนตัวกรองแผนกทั้ง 5 จุดจาก "ค่าเดียว" เป็น "ชุด"** — `requestDeptId: X` → `requestDeptId: { in: ids }`
    (`layout.tsx` ที่นับ unread · `requests/page.tsx` · `board/page.tsx` · `notifications/page.tsx` · `api/search/route.ts`)
    `getUnreadCount()` ใน `lib/notifications.ts` ต้องรับ **array** แทนเลขเดียว
-9. ไล่แก้ทุกจุดที่เรียก `canPlanAndManage` (7 จุด) ให้เป็น `canPlanWork` หรือ `canManageSystem` ตามความหมาย
-10. ไล่แก้ `canEditTests` 8 จุด — จุดที่แปลว่า "ทีมแลป เห็นได้ทุกแผนก" เปลี่ยนเป็น `canViewLabWide`
-    (`analytics` · `reports` · `labels` · `api/export` · `guard.ts: guardPageTeam`)
+9. **(บังคับ)** ไล่แก้ทุกจุดที่เรียก `canPlanAndManage` (7 จุด) ให้เป็น `canPlanWork` หรือ `canManageSystem` ตามความหมาย
+   — ถ้าไม่ทำ `LAB_HEAD` จะวางแผนไม่ได้ หรือไม่ก็หลุดเข้าหน้า master data
+10. **(ทำได้เลย ไม่เร่ง)** เปลี่ยน `canEditTests` เป็น `canViewLabWide` ที่ `analytics` · `reports` · `labels` ·
+    `api/export` · `guard.ts: guardPageTeam` — สมาชิกเท่ากันอยู่แล้ว ทำเพื่อความชัดเจนของโค้ด
 11. `webapp/src/lib/guard.ts` — `guardPageTeam` ใช้ `canViewLabWide`, เพิ่ม `guardPagePlan` (canPlanWork), `guardPageApprove`
 12. `webapp/src/app/settings/users/` — รองรับ 2 role ใหม่ · **DEPT_HEAD เลือกแผนกที่คุมได้หลายแผนก (checkbox/multi-select)**
     ไม่ใช่ dropdown ค่าเดียว · LAB_HEAD ไม่ต้องเลือกแผนก
