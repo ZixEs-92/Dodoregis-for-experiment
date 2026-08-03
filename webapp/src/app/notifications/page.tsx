@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { generateDueNotifications } from "@/lib/notifications";
+import { generateDueNotifications, generateOverdueApprovalNotifications } from "@/lib/notifications";
 import { markNotificationRead, markAllNotificationsRead } from "@/app/actions";
 import { guardPageUser } from "@/lib/guard";
 import { toScope } from "@/lib/auth";
-import { canEditTests, canManageSystem, departmentFilter } from "@/lib/roles";
+import { canEditTests, canManageSystem, canReachApprovals, departmentFilter } from "@/lib/roles";
 import { toDisplayDateTime } from "@/lib/date";
 import { NotificationLevel } from "@/generated/prisma/client";
 
@@ -18,22 +18,32 @@ const LEVEL_COLOR: Record<NotificationLevel, string> = {
 };
 const LEVEL_LABEL: Record<NotificationLevel, string> = {
   INFO: "ข้อมูล",
-  WARNING: "ใกล้กำหนด",
-  CRITICAL: "เลยกำหนด",
+  WARNING: "ต้องติดตาม",
+  CRITICAL: "ด่วน",
 };
 
 export default async function NotificationsPage() {
   const user = await guardPageUser("/notifications");
+  const scope = toScope(user);
   const isTeam = canEditTests(user.role);
 
-  // เปิดหน้านี้ = รีเฟรชแจ้งเตือนงานเลย/ใกล้กำหนด (กันซ้ำรายวันในตัว)
-  // ให้เฉพาะทีมแลปเป็นคนจุด — ผู้ขอทดสอบไม่ควรเขียนข้อมูลของทั้งแลป
+  // เปิดหน้านี้ = รีเฟรชแจ้งเตือนงานเลย/ใกล้กำหนด + ใบค้างรออนุมัติ (กันซ้ำรายวันในตัว)
+  // ให้เฉพาะคนที่เกี่ยวข้องเป็นคนจุด — ผู้ขอทดสอบไม่ควรเขียนข้อมูลของทั้งแลป
   if (isTeam) await generateDueNotifications().catch(() => {});
+  if (canReachApprovals(scope)) await generateOverdueApprovalNotifications().catch(() => {});
 
   // ผู้ขอทดสอบ/หัวหน้าแผนกเห็นเฉพาะแจ้งเตือนของงานในขอบเขตแผนกตัวเอง
-  const deptFilter = departmentFilter(toScope(user));
+  // เช็คทั้งทาง item->request (แจ้งเตือนสถานะ/กำหนดเวลา) และ regisNo ตรง (แจ้งเตือนระดับใบที่ไม่ผูก item)
+  const deptFilter = departmentFilter(scope);
   const notifications = await prisma.notification.findMany({
-    where: deptFilter ? { item: { request: { requestDeptId: deptFilter } } } : {},
+    where: deptFilter
+      ? {
+          OR: [
+            { item: { request: { requestDeptId: deptFilter } } },
+            { request: { requestDeptId: deptFilter } },
+          ],
+        }
+      : {},
     include: { item: true },
     orderBy: [{ readAt: "asc" }, { createdAt: "desc" }],
     take: 200,
@@ -81,13 +91,22 @@ export default async function NotificationsPage() {
                   <div className="text-[14px] text-ink">{n.message}</div>
                   <div className="text-[12px] text-muted mt-0.5">
                     {toDisplayDateTime(n.createdAt)}
-                    {n.item && (
+                    {n.item ? (
                       <>
                         {" · "}
                         <Link href={`/items/${n.item.itemCode}`} className="text-link hover:underline">
                           เปิดงาน →
                         </Link>
                       </>
+                    ) : (
+                      n.regisNo && (
+                        <>
+                          {" · "}
+                          <Link href={`/requests/${n.regisNo}`} className="text-link hover:underline">
+                            เปิดใบ →
+                          </Link>
+                        </>
+                      )
                     )}
                   </div>
                 </div>

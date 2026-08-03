@@ -168,7 +168,8 @@ model TestRequest {
   rejectedAt    DateTime? @map("rejected_at")
   rejectReason  String?   @map("reject_reason")
 
-  approvalLogs ApprovalLog[]
+  approvalLogs  ApprovalLog[]
+  notifications Notification[]
 
   @@index([approvalStatus])
   @@map("test_requests")
@@ -401,11 +402,17 @@ model AppSetting {
 
 model Notification {
   id        Int               @id @default(autoincrement())
-  kind      String // OVERDUE | DUE_SOON | STATUS_CHANGE
+  kind      String // OVERDUE | DUE_SOON | STATUS_CHANGE | APPROVAL_NEEDED | REJECTED | APPROVAL_OVERDUE
   level     NotificationLevel @default(INFO)
   message   String
   itemId    Int?              @map("item_id")
   item      TestItem?         @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  // เหตุการณ์ระดับใบ (อนุมัติ/ตีกลับ) ไม่ผูกกับ item เสมอไป — ใบที่ยังไม่มีรายการทดสอบก็ต้องแจ้งได้
+  // (ไม่มีช่องนี้ ผู้ขอ/หัวหน้าแผนกจะไม่เห็นแจ้งเตือนของใบตัวเองเลยตอนที่ยังไม่มี item ผูกอยู่)
+  regisNo String?      @map("regis_no")
+  request TestRequest? @relation(fields: [regisNo], references: [regisNo], onDelete: Cascade)
+
   dedupeKey String            @unique @map("dedupe_key") // กันสร้างซ้ำ (kind+item+วันที่)
   readAt    DateTime?         @map("read_at")
   createdAt DateTime          @default(now()) @map("created_at")

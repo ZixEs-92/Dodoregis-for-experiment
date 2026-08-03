@@ -5,7 +5,12 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { generateRegisNo, buildItemCode, nextItemNo } from "@/lib/regisNo";
 import { validateStatusRequirements } from "@/lib/workflow";
-import { notifyStatusChange, notifyNewRequest } from "@/lib/notifications";
+import {
+  notifyStatusChange,
+  checkAndNotifyNeedsPlanning,
+  notifyApprovalNeeded,
+  notifyRejected,
+} from "@/lib/notifications";
 import { sendLinePush, LineResult } from "@/lib/line";
 import {
   storeUploadedFile,
@@ -274,13 +279,15 @@ export async function createRequest(
 
   // สถานะอนุมัติเริ่มต้น (Phase 4c) — ADMIN/LAB_HEAD/ENGINEER คีย์เองอนุมัติอัตโนมัติ
   // REQUESTER รอหัวหน้าแผนกก่อน เว้นแต่ปิดชั้นนี้ไว้หรือแผนกยังไม่มีหัวหน้า (กันใบค้างไม่มีคนเซ็น)
-  const deptHasHead =
-    (await prisma.department.count({ where: { id: deptId!, heads: { some: {} } } })) > 0;
+  const dept = await prisma.department.findUniqueOrThrow({
+    where: { id: deptId! },
+    include: { heads: { select: { id: true } } },
+  });
   const deptStageOn = await isDeptStageOn();
   const approvalStatus = initialApprovalStatus({
     creatorRole: user.role,
     deptStageOn,
-    deptHasHead,
+    deptHasHead: dept.heads.length > 0,
   });
   const submittedAt = approvalStatus === "APPROVED" ? null : new Date();
 
@@ -363,24 +370,17 @@ export async function createRequest(
   // ไฟล์แนบที่แนบมาพร้อมใบ (ใบรีเควสตัวจริง / อีเมลต้นเรื่อง / รูปชิ้นงาน)
   await saveAttachments(pendingFiles, { requestNo: createdRegisNo });
 
-  // แจ้งเตือน admin: มีใบใหม่เข้ามา (ทั้งกรณีมีรายการรอวางแผน และกรณีที่ยังไม่มีรายการทดสอบ)
-  {
-    const created = await prisma.testRequest.findUnique({
-      where: { regisNo: createdRegisNo },
-      include: { requestDept: true, items: { orderBy: { itemNo: "asc" } } },
-    });
-    const firstItem = created?.items[0];
-    const anyUnassigned = created?.items.some((i) => !i.ownerId) ?? false;
-    if (created && (created.items.length === 0 || anyUnassigned)) {
-      await notifyNewRequest({
-        itemId: firstItem?.id ?? null,
-        regisNo: created.regisNo,
-        subject: created.testObject ?? firstItem?.partName ?? "—",
-        deptName: created.requestDept.name,
-        requester: created.requester,
-        needsItems: created.items.length === 0,
-      }).catch(() => {});
-    }
+  // แจ้งเตือน — อนุมัติอัตโนมัติแล้ว (ทีมแลปคีย์เอง) แจ้งว่ามีงานรอวางแผนได้เลย
+  // ไม่งั้นแจ้งหัวหน้าที่ต้องเซ็นก่อน (ยังไม่ถึงตอนแจ้ง "รอวางแผน")
+  if (approvalStatus === "APPROVED") {
+    await checkAndNotifyNeedsPlanning(createdRegisNo).catch(() => {});
+  } else {
+    await notifyApprovalNeeded({
+      regisNo: createdRegisNo,
+      stage: stageOf(approvalStatus)!,
+      deptName: dept.name,
+      testObject: str(formData, "test_object"),
+    }).catch(() => {});
   }
 
   revalidatePath("/requests");
@@ -803,7 +803,10 @@ export async function approveRequest(regisNo: string): Promise<ActionResult> {
   const user = (await getCurrentUser())!;
   const scope = toScope(user);
 
-  const req = await prisma.testRequest.findUnique({ where: { regisNo } });
+  const req = await prisma.testRequest.findUnique({
+    where: { regisNo },
+    include: { requestDept: true },
+  });
   if (!req) return { ok: false, errors: ["ไม่พบใบรีเควสนี้"] };
 
   const stage = stageOf(req.approvalStatus);
@@ -826,6 +829,18 @@ export async function approveRequest(regisNo: string): Promise<ActionResult> {
   });
   await prisma.approvalLog.create({ data: { regisNo, stage, action, byId: user.id } });
 
+  // ผ่านชั้นแผนก → เตือนหัวหน้าแลปต่อ · ผ่านชั้นแลป (อนุมัติครบ) → เตือนว่าพร้อมวางแผน
+  if (stage === "DEPT") {
+    await notifyApprovalNeeded({
+      regisNo,
+      stage: "LAB",
+      deptName: req.requestDept.name,
+      testObject: req.testObject,
+    }).catch(() => {});
+  } else {
+    await checkAndNotifyNeedsPlanning(regisNo).catch(() => {});
+  }
+
   approvalRevalidate(regisNo);
   return { ok: true, errors: [], saved: true };
 }
@@ -843,7 +858,10 @@ export async function rejectRequest(
   const reason = str(formData, "reason");
   if (!reason) return { ok: false, errors: ["กรุณากรอกเหตุผลที่ตีกลับ"] };
 
-  const req = await prisma.testRequest.findUnique({ where: { regisNo } });
+  const req = await prisma.testRequest.findUnique({
+    where: { regisNo },
+    include: { requestDept: true },
+  });
   if (!req) return { ok: false, errors: ["ไม่พบใบรีเควสนี้"] };
 
   const stage = stageOf(req.approvalStatus);
@@ -865,6 +883,7 @@ export async function rejectRequest(
     },
   });
   await prisma.approvalLog.create({ data: { regisNo, stage, action, byId: user.id, reason } });
+  await notifyRejected({ regisNo, reason, deptName: req.requestDept.name }).catch(() => {});
 
   approvalRevalidate(regisNo);
   return { ok: true, errors: [], saved: true };
@@ -877,7 +896,10 @@ export async function resubmitRequest(regisNo: string): Promise<ActionResult> {
   const user = (await getCurrentUser())!;
   const scope = toScope(user);
 
-  const req = await prisma.testRequest.findUnique({ where: { regisNo } });
+  const req = await prisma.testRequest.findUnique({
+    where: { regisNo },
+    include: { requestDept: { include: { heads: { select: { id: true } } } } },
+  });
   if (!req) return { ok: false, errors: ["ไม่พบใบรีเควสนี้"] };
   if (req.approvalStatus !== "REJECTED") {
     return { ok: false, errors: ["ส่งใหม่ได้เฉพาะใบที่ถูกตีกลับ"] };
@@ -886,10 +908,8 @@ export async function resubmitRequest(regisNo: string): Promise<ActionResult> {
   const { canResubmit } = actionsFor(req.approvalStatus, scope, req.requestDeptId);
   if (!canResubmit) return { ok: false, errors: ["ไม่มีสิทธิ์ส่งใบนี้ใหม่"] };
 
-  const deptHasHead =
-    (await prisma.department.count({ where: { id: req.requestDeptId, heads: { some: {} } } })) > 0;
   const deptStageOn = await isDeptStageOn();
-  const newStatus = deptStageOn && deptHasHead ? "PENDING_DEPT" : "PENDING_LAB";
+  const newStatus = deptStageOn && req.requestDept.heads.length > 0 ? "PENDING_DEPT" : "PENDING_LAB";
 
   await prisma.testRequest.update({
     where: { regisNo },
@@ -910,6 +930,12 @@ export async function resubmitRequest(regisNo: string): Promise<ActionResult> {
   await prisma.approvalLog.create({
     data: { regisNo, stage: stageOf(newStatus)!, action: "SUBMIT", byId: user.id },
   });
+  await notifyApprovalNeeded({
+    regisNo,
+    stage: stageOf(newStatus)!,
+    deptName: req.requestDept.name,
+    testObject: req.testObject,
+  }).catch(() => {});
 
   approvalRevalidate(regisNo);
   return { ok: true, errors: [], saved: true };
@@ -1206,13 +1232,20 @@ export async function markNotificationRead(id: number) {
   const user = (await getCurrentUser())!;
   const deptFilter = departmentFilter(toScope(user));
   // ปิด F4: ผู้ขอ/หัวหน้าแผนกเดา id แจ้งเตือนของแผนกอื่นแล้วกดอ่านไม่ได้
+  // เช็คทั้งทาง item->request (แจ้งเตือนเก่า) และ regisNo ตรง (แจ้งเตือนระดับใบที่ไม่ผูก item)
   const notif = await prisma.notification.findUnique({
     where: { id },
-    include: { item: { select: { request: { select: { requestDeptId: true } } } } },
+    include: {
+      item: { select: { request: { select: { requestDeptId: true } } } },
+      request: { select: { requestDeptId: true } },
+    },
   });
   if (!notif) return;
-  if (deptFilter && (!notif.item || !deptFilter.in.includes(notif.item.request.requestDeptId))) {
-    throw new Error("ไม่มีสิทธิ์เข้าถึงแจ้งเตือนนี้");
+  if (deptFilter) {
+    const deptId = notif.item?.request.requestDeptId ?? notif.request?.requestDeptId ?? null;
+    if (deptId == null || !deptFilter.in.includes(deptId)) {
+      throw new Error("ไม่มีสิทธิ์เข้าถึงแจ้งเตือนนี้");
+    }
   }
   await prisma.notification.update({ where: { id }, data: { readAt: new Date() } });
   revalidatePath("/notifications");
@@ -1226,7 +1259,14 @@ export async function markAllNotificationsRead() {
   await prisma.notification.updateMany({
     where: {
       readAt: null,
-      ...(deptFilter ? { item: { request: { requestDeptId: deptFilter } } } : {}),
+      ...(deptFilter
+        ? {
+            OR: [
+              { item: { request: { requestDeptId: deptFilter } } },
+              { request: { requestDeptId: deptFilter } },
+            ],
+          }
+        : {}),
     },
     data: { readAt: new Date() },
   });
