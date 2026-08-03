@@ -21,7 +21,16 @@ import {
   ensureManageSystem,
 } from "@/lib/guard";
 import { getCurrentUser, toScope } from "@/lib/auth";
-import { canEditTests, canViewRequest } from "@/lib/roles";
+import { canAttachToRequest, canEditTests, canViewRequest, departmentFilter } from "@/lib/roles";
+import {
+  actionsFor,
+  APPROVAL_LABEL,
+  canEditRequestNow,
+  initialApprovalStatus,
+  nextStatusOnApprove,
+  stageOf,
+} from "@/lib/approval";
+import { isDeptStageOn } from "@/lib/appSettings";
 import {
   RequestStatus,
   RunResult,
@@ -263,6 +272,18 @@ export async function createRequest(
 
   const requestDate = date(formData, "request_date")!;
 
+  // สถานะอนุมัติเริ่มต้น (Phase 4c) — ADMIN/LAB_HEAD/ENGINEER คีย์เองอนุมัติอัตโนมัติ
+  // REQUESTER รอหัวหน้าแผนกก่อน เว้นแต่ปิดชั้นนี้ไว้หรือแผนกยังไม่มีหัวหน้า (กันใบค้างไม่มีคนเซ็น)
+  const deptHasHead =
+    (await prisma.department.count({ where: { id: deptId!, heads: { some: {} } } })) > 0;
+  const deptStageOn = await isDeptStageOn();
+  const approvalStatus = initialApprovalStatus({
+    creatorRole: user.role,
+    deptStageOn,
+    deptHasHead,
+  });
+  const submittedAt = approvalStatus === "APPROVED" ? null : new Date();
+
   let createdRegisNo: string | null = null;
   for (let attempt = 0; attempt < 4 && !createdRegisNo; attempt++) {
     const { regisNo, seq } = await generateRegisNo(requestDate);
@@ -280,6 +301,8 @@ export async function createRequest(
           requestDate,
           remark: str(formData, "request_remark"),
           createdById: user.id,
+          approvalStatus,
+          submittedAt,
           parts: {
             create: parts.map((p, idx) => ({ ...p, sortOrder: idx })),
           },
@@ -291,6 +314,16 @@ export async function createRequest(
     }
   }
   if (!createdRegisNo) return { ok: false, errors: ["ออกเลขใบรีเควสไม่สำเร็จ ลองใหม่อีกครั้ง"] };
+
+  await prisma.approvalLog.create({
+    data: {
+      regisNo: createdRegisNo,
+      // AUTO_APPROVE ข้ามทั้ง 2 ชั้น — ลงเป็นชั้น LAB ไว้เป็นค่าปิดท้าย (ไม่มีชั้นจริงให้ลง)
+      stage: stageOf(approvalStatus) ?? "LAB",
+      action: approvalStatus === "APPROVED" ? "AUTO_APPROVE" : "SUBMIT",
+      byId: user.id,
+    },
+  });
 
   // สร้างรายการทดสอบ พร้อมผูกชิ้นงานที่เลือก
   const createdParts = await prisma.requestPart.findMany({
@@ -367,13 +400,8 @@ export async function addItem(
   if (denied) return { ok: false, errors: [denied] };
   const user = (await getCurrentUser())!;
 
-  // requester/dept_head เพิ่ม item ได้เฉพาะใบในขอบเขตแผนกตัวเอง
-  if (user.role === "REQUESTER" || user.role === "DEPT_HEAD") {
-    const req = await prisma.testRequest.findUnique({ where: { regisNo } });
-    if (!req || !canViewRequest(toScope(user), req.requestDeptId)) {
-      return { ok: false, errors: ["เพิ่มรายการได้เฉพาะใบรีเควสในขอบเขตแผนกตัวเอง"] };
-    }
-  }
+  const editDenied = await assertCanEditRequestData(user, regisNo);
+  if (editDenied) return { ok: false, errors: [editDenied] };
 
   const partIds = partIdsFromForm(formData);
   const errors: string[] = [];
@@ -418,16 +446,47 @@ export async function addItem(
 
 // ── ชิ้นงาน/รุ่น Lamp ในใบรีเควส ─────────────────────────────
 
-/** ผู้ขอ/หัวหน้าแผนกแก้ได้เฉพาะใบในขอบเขตแผนกตัวเอง */
+type SessionUser = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
+
+/**
+ * เช็คว่าแก้ "เนื้อใบ" (เพิ่ม/ลบรายการทดสอบ, แก้รุ่น Lamp) ได้ไหมตอนนี้ — ใช้ทั้ง assertCanEditRequest และ addItem
+ * ทีมแลปแก้ได้เสมอ · ผู้ขอ/หัวหน้าแผนกแก้ได้เฉพาะก่อนหัวหน้าแผนกเซ็น (ปิดช่องโหว่ F1 — ดู canEditRequestNow)
+ */
+async function assertCanEditRequestData(
+  user: SessionUser,
+  regisNo: string,
+): Promise<string | null> {
+  if (canEditTests(user.role)) return null;
+  const req = await prisma.testRequest.findUnique({ where: { regisNo } });
+  if (!req) return "ไม่พบใบรีเควสนี้";
+  if (!canEditRequestNow(toScope(user), req.requestDeptId, req.approvalStatus)) {
+    if (!canViewRequest(toScope(user), req.requestDeptId)) {
+      return "แก้ไขได้เฉพาะใบรีเควสในขอบเขตแผนกตัวเอง";
+    }
+    return `แก้ไขไม่ได้แล้ว — ใบนี้อยู่ในสถานะ "${APPROVAL_LABEL[req.approvalStatus]}"`;
+  }
+  return null;
+}
+
+/** ผู้ขอ/หัวหน้าแผนกแก้ได้เฉพาะใบในขอบเขตแผนกตัวเอง และก่อนหัวหน้าแผนกเซ็น */
 async function assertCanEditRequest(regisNo: string): Promise<string | null> {
   const denied = await ensureCreateRequest();
   if (denied) return denied;
   const user = (await getCurrentUser())!;
-  if (user.role === "REQUESTER" || user.role === "DEPT_HEAD") {
-    const req = await prisma.testRequest.findUnique({ where: { regisNo } });
-    if (!req || !canViewRequest(toScope(user), req.requestDeptId)) {
-      return "แก้ไขได้เฉพาะใบรีเควสในขอบเขตแผนกตัวเอง";
-    }
+  return assertCanEditRequestData(user, regisNo);
+}
+
+/**
+ * เช็คสิทธิ์แนบไฟล์ — เช็คแค่ขอบเขตแผนก ไม่เช็คสถานะอนุมัติ (แนบได้ทุกสถานะ
+ * หัวหน้าอาจขอเอกสารเพิ่มก่อนเซ็น — ข้อ 3.3.2 ในแผน) ลบยังคุมด้วย ensureEditTests แยกต่างหาก
+ */
+async function assertCanAttach(regisNo: string): Promise<string | null> {
+  const denied = await ensureCreateRequest();
+  if (denied) return denied;
+  const user = (await getCurrentUser())!;
+  const req = await prisma.testRequest.findUnique({ where: { regisNo } });
+  if (!req || !canAttachToRequest(toScope(user), req.requestDeptId)) {
+    return "แนบไฟล์ได้เฉพาะใบรีเควสในขอบเขตแผนกตัวเอง";
   }
   return null;
 }
@@ -646,8 +705,22 @@ export async function changeItemStatus(itemCode: string, target: RequestStatus) 
   if (denied) return { ok: false as const, errors: [denied] };
   const item = await prisma.testItem.findUniqueOrThrow({
     where: { itemCode },
-    include: { reports: { orderBy: { id: "desc" } } },
+    include: {
+      reports: { orderBy: { id: "desc" } },
+      request: { select: { approvalStatus: true } },
+    },
   });
+
+  // ใบที่ยังไม่ผ่านการอนุมัติ ห้ามเดินหน้าเกินสถานะ 1 (ยกเว้น Hold/Cancel) — ปิดช่องโหว่ F1
+  const NOT_APPROVED_OK: RequestStatus[] = ["S1_RECEIVED", "S9_HOLD", "S10_CANCEL"];
+  if (item.request.approvalStatus !== "APPROVED" && !NOT_APPROVED_OK.includes(target)) {
+    return {
+      ok: false as const,
+      errors: [
+        `ใบรีเควสนี้ยังไม่ผ่านการอนุมัติ (สถานะ: ${APPROVAL_LABEL[item.request.approvalStatus]}) — ต้องอนุมัติก่อนจึงจะเริ่มงานได้`,
+      ],
+    };
+  }
 
   // งานที่ยังไม่มอบหมายผู้รับผิดชอบ ห้ามเดินหน้าเกินสถานะ 2 (ยกเว้น Hold/Cancel)
   const UNASSIGNED_OK: RequestStatus[] = ["S1_RECEIVED", "S2_WAIT_PART", "S9_HOLD", "S10_CANCEL"];
@@ -711,6 +784,135 @@ export async function changeItemStatus(itemCode: string, target: RequestStatus) 
   revalidatePath("/requests");
   revalidatePath("/");
   return { ok: true as const, errors: [] as string[] };
+}
+
+// ── อนุมัติ/ตีกลับ/ส่งใหม่ ใบรีเควส (Phase 4c) ────────────────
+// ทุก action: เช็คสิทธิ์ฝั่ง server → เช็คว่าสถานะปัจจุบันทำได้จริง → อัปเดต → เขียน ApprovalLog → revalidate
+
+function approvalRevalidate(regisNo: string) {
+  revalidatePath(`/requests/${regisNo}`);
+  revalidatePath("/approvals");
+  revalidatePath("/planning");
+  revalidatePath("/requests");
+  revalidatePath("/");
+}
+
+export async function approveRequest(regisNo: string): Promise<ActionResult> {
+  const denied = await ensureUser();
+  if (denied) return { ok: false, errors: [denied] };
+  const user = (await getCurrentUser())!;
+  const scope = toScope(user);
+
+  const req = await prisma.testRequest.findUnique({ where: { regisNo } });
+  if (!req) return { ok: false, errors: ["ไม่พบใบรีเควสนี้"] };
+
+  const stage = stageOf(req.approvalStatus);
+  if (!stage) return { ok: false, errors: [`ใบนี้ไม่ได้อยู่ระหว่างรออนุมัติ (สถานะ: ${APPROVAL_LABEL[req.approvalStatus]})`] };
+
+  const { canApprove } = actionsFor(req.approvalStatus, scope, req.requestDeptId);
+  if (!canApprove) return { ok: false, errors: ["ไม่มีสิทธิ์อนุมัติใบนี้"] };
+
+  // admin เซ็นแทนหัวหน้าที่ควรเป็นคนเซ็นจริง ๆ เสมอ (บัญชี admin ไม่ใช่หัวหน้าแผนก/หัวหน้าแลปโดยตำแหน่ง) — บันทึกเป็น OVERRIDE
+  const action = user.role === "ADMIN" ? "OVERRIDE" : "APPROVE";
+  const nextStatus = nextStatusOnApprove(req.approvalStatus);
+
+  await prisma.testRequest.update({
+    where: { regisNo },
+    data: {
+      approvalStatus: nextStatus,
+      ...(stage === "DEPT" ? { deptApprovedById: user.id, deptApprovedAt: new Date() } : {}),
+      ...(stage === "LAB" ? { labApprovedById: user.id, labApprovedAt: new Date() } : {}),
+    },
+  });
+  await prisma.approvalLog.create({ data: { regisNo, stage, action, byId: user.id } });
+
+  approvalRevalidate(regisNo);
+  return { ok: true, errors: [], saved: true };
+}
+
+export async function rejectRequest(
+  regisNo: string,
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const denied = await ensureUser();
+  if (denied) return { ok: false, errors: [denied] };
+  const user = (await getCurrentUser())!;
+  const scope = toScope(user);
+
+  const reason = str(formData, "reason");
+  if (!reason) return { ok: false, errors: ["กรุณากรอกเหตุผลที่ตีกลับ"] };
+
+  const req = await prisma.testRequest.findUnique({ where: { regisNo } });
+  if (!req) return { ok: false, errors: ["ไม่พบใบรีเควสนี้"] };
+
+  const stage = stageOf(req.approvalStatus);
+  if (!stage) return { ok: false, errors: [`ใบนี้ไม่ได้อยู่ระหว่างรออนุมัติ (สถานะ: ${APPROVAL_LABEL[req.approvalStatus]})`] };
+
+  const { canReject } = actionsFor(req.approvalStatus, scope, req.requestDeptId);
+  if (!canReject) return { ok: false, errors: ["ไม่มีสิทธิ์ตีกลับใบนี้"] };
+
+  const action = user.role === "ADMIN" ? "OVERRIDE" : "REJECT";
+
+  await prisma.testRequest.update({
+    where: { regisNo },
+    data: {
+      approvalStatus: "REJECTED",
+      rejectedStage: stage,
+      rejectedById: user.id,
+      rejectedAt: new Date(),
+      rejectReason: reason,
+    },
+  });
+  await prisma.approvalLog.create({ data: { regisNo, stage, action, byId: user.id, reason } });
+
+  approvalRevalidate(regisNo);
+  return { ok: true, errors: [], saved: true };
+}
+
+/** ผู้ขอ/หัวหน้าแผนกของแผนกนั้น (หรือ admin) ส่งใบที่ถูกตีกลับใหม่ — เริ่มอนุมัติใหม่ทั้ง 2 ชั้นเสมอ */
+export async function resubmitRequest(regisNo: string): Promise<ActionResult> {
+  const denied = await ensureUser();
+  if (denied) return { ok: false, errors: [denied] };
+  const user = (await getCurrentUser())!;
+  const scope = toScope(user);
+
+  const req = await prisma.testRequest.findUnique({ where: { regisNo } });
+  if (!req) return { ok: false, errors: ["ไม่พบใบรีเควสนี้"] };
+  if (req.approvalStatus !== "REJECTED") {
+    return { ok: false, errors: ["ส่งใหม่ได้เฉพาะใบที่ถูกตีกลับ"] };
+  }
+
+  const { canResubmit } = actionsFor(req.approvalStatus, scope, req.requestDeptId);
+  if (!canResubmit) return { ok: false, errors: ["ไม่มีสิทธิ์ส่งใบนี้ใหม่"] };
+
+  const deptHasHead =
+    (await prisma.department.count({ where: { id: req.requestDeptId, heads: { some: {} } } })) > 0;
+  const deptStageOn = await isDeptStageOn();
+  const newStatus = deptStageOn && deptHasHead ? "PENDING_DEPT" : "PENDING_LAB";
+
+  await prisma.testRequest.update({
+    where: { regisNo },
+    data: {
+      approvalStatus: newStatus,
+      submittedAt: new Date(),
+      resubmitCount: { increment: 1 },
+      rejectedStage: null,
+      rejectedById: null,
+      rejectedAt: null,
+      rejectReason: null,
+      deptApprovedById: null,
+      deptApprovedAt: null,
+      labApprovedById: null,
+      labApprovedAt: null,
+    },
+  });
+  await prisma.approvalLog.create({
+    data: { regisNo, stage: stageOf(newStatus)!, action: "SUBMIT", byId: user.id },
+  });
+
+  approvalRevalidate(regisNo);
+  return { ok: true, errors: [], saved: true };
 }
 
 // ── วางแผนงาน (Phase 3d — admin มอบหมายผู้รับผิดชอบ + ลงวันที่ plan) ──
@@ -920,8 +1122,8 @@ export async function uploadAttachment(
   _prev: ActionResult,
   formData: FormData
 ): Promise<ActionResult> {
-  // ผู้ขอทดสอบแนบไฟล์เองได้ (เขาเป็นคนถืออีเมล/ใบรีเควส/รูปชิ้นงาน)
-  // แต่เฉพาะใบของแผนกตัวเอง — assertCanEditRequest บังคับให้ · viewer ถูกปัดตกตั้งแต่ ensureCreateRequest
+  // ผู้ขอทดสอบแนบไฟล์เองได้ (เขาเป็นคนถืออีเมล/ใบรีเควส/รูปชิ้นงาน) แนบได้ทุกสถานะอนุมัติ
+  // แต่เฉพาะใบของแผนกตัวเอง — assertCanAttach บังคับให้ · viewer ถูกปัดตกตั้งแต่ ensureCreateRequest
   const regisNo =
     scope.requestNo ??
     (
@@ -931,7 +1133,7 @@ export async function uploadAttachment(
       })
     )?.regisNo;
   if (!regisNo) return { ok: false, errors: ["ไม่พบใบรีเควสของไฟล์แนบนี้"] };
-  const denied = await assertCanEditRequest(regisNo);
+  const denied = await assertCanAttach(regisNo);
   if (denied) return { ok: false, errors: [denied] };
 
   const kindRaw = str(formData, "kind");
@@ -1001,6 +1203,17 @@ export async function deleteAttachment(id: number) {
 export async function markNotificationRead(id: number) {
   const denied = await ensureUser();
   if (denied) throw new Error(denied);
+  const user = (await getCurrentUser())!;
+  const deptFilter = departmentFilter(toScope(user));
+  // ปิด F4: ผู้ขอ/หัวหน้าแผนกเดา id แจ้งเตือนของแผนกอื่นแล้วกดอ่านไม่ได้
+  const notif = await prisma.notification.findUnique({
+    where: { id },
+    include: { item: { select: { request: { select: { requestDeptId: true } } } } },
+  });
+  if (!notif) return;
+  if (deptFilter && (!notif.item || !deptFilter.in.includes(notif.item.request.requestDeptId))) {
+    throw new Error("ไม่มีสิทธิ์เข้าถึงแจ้งเตือนนี้");
+  }
   await prisma.notification.update({ where: { id }, data: { readAt: new Date() } });
   revalidatePath("/notifications");
 }
@@ -1008,8 +1221,13 @@ export async function markNotificationRead(id: number) {
 export async function markAllNotificationsRead() {
   const denied = await ensureUser();
   if (denied) throw new Error(denied);
+  const user = (await getCurrentUser())!;
+  const deptFilter = departmentFilter(toScope(user));
   await prisma.notification.updateMany({
-    where: { readAt: null },
+    where: {
+      readAt: null,
+      ...(deptFilter ? { item: { request: { requestDeptId: deptFilter } } } : {}),
+    },
     data: { readAt: new Date() },
   });
   revalidatePath("/notifications");

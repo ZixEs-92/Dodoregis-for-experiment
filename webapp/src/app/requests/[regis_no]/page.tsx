@@ -10,15 +10,13 @@ import StatusBadge from "@/components/StatusBadge";
 import AddItemForm from "@/components/AddItemForm";
 import RequestParts from "@/components/RequestParts";
 import AttachmentsSection from "@/components/AttachmentsSection";
+import ApprovalPanel, { ApprovalLogEntry } from "@/components/ApprovalPanel";
 import { addItem, uploadAttachment } from "@/app/actions";
 import { guardPageUser } from "@/lib/guard";
 import { toScope } from "@/lib/auth";
-import {
-  canAttachToRequest,
-  canCreateRequest,
-  canEditTests,
-  canViewRequest,
-} from "@/lib/roles";
+import { canAttachToRequest, canEditTests, canViewRequest } from "@/lib/roles";
+import { actionsFor, canEditRequestNow } from "@/lib/approval";
+import { toDisplayDateTime } from "@/lib/date";
 
 // บังคับ dynamic เสมอ — หน้านี้ผลลัพธ์ขึ้นกับ session ผู้ใช้ (canViewRequest/canEdit/canAttach)
 // ถ้าปล่อยให้ Next cache ผลตาม URL เฉย ๆ ผู้ใช้คนอื่นที่เปิด URL เดียวกันจะได้ผล 404/สิทธิ์ของคนแรกที่แคชไว้แทน
@@ -54,6 +52,10 @@ export default async function RequestOverviewPage({
         orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
       },
       attachments: { orderBy: { id: "desc" } },
+      deptApprovedBy: true,
+      labApprovedBy: true,
+      rejectedBy: true,
+      approvalLogs: { include: { by: true }, orderBy: { at: "asc" } },
     },
   });
 
@@ -75,15 +77,42 @@ export default async function RequestOverviewPage({
   const addItemBound = addItem.bind(null, regisNo);
   const uploadBound = uploadAttachment.bind(null, { requestNo: regisNo });
 
-  const canCreate = canCreateRequest(currentUser.role);
   const canEdit = canEditTests(currentUser.role);
   const canAttach = canAttachToRequest(scope, request.requestDeptId);
+  // เพิ่ม/ลบชิ้นงาน (parts) และเพิ่มรายการทดสอบ (item) ผูกกับสถานะอนุมัติ (ปิดช่องโหว่ F1)
+  const canEditContent = canEditRequestNow(scope, request.requestDeptId, request.approvalStatus);
+  const approvalActions = actionsFor(request.approvalStatus, scope, request.requestDeptId);
+  const approvalLogEntries: ApprovalLogEntry[] = request.approvalLogs.map((l) => ({
+    stage: l.stage,
+    action: l.action,
+    byName: l.by?.displayName ?? null,
+    reason: l.reason,
+    at: toDisplayDateTime(l.at),
+  }));
 
   return (
     <div className="flex flex-col gap-5 pb-10">
       <Link href="/requests" className="text-[13px] text-muted hover:text-ink w-fit">
         ← กลับไปรายการงาน
       </Link>
+
+      <ApprovalPanel
+        regisNo={request.regisNo}
+        approvalStatus={request.approvalStatus}
+        resubmitCount={request.resubmitCount}
+        deptApprovedByName={request.deptApprovedBy?.displayName ?? null}
+        deptApprovedAt={request.deptApprovedAt ? toDisplayDateTime(request.deptApprovedAt) : null}
+        labApprovedByName={request.labApprovedBy?.displayName ?? null}
+        labApprovedAt={request.labApprovedAt ? toDisplayDateTime(request.labApprovedAt) : null}
+        rejectedStage={request.rejectedStage}
+        rejectedByName={request.rejectedBy?.displayName ?? null}
+        rejectedAt={request.rejectedAt ? toDisplayDateTime(request.rejectedAt) : null}
+        rejectReason={request.rejectReason}
+        canApprove={approvalActions.canApprove}
+        canReject={approvalActions.canReject}
+        canResubmit={approvalActions.canResubmit}
+        logs={approvalLogEntries}
+      />
 
       {/* หัวใบ + สถานะรวม + QR */}
       <div className="card p-5 sm:p-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -169,7 +198,7 @@ export default async function RequestOverviewPage({
       {/* ชิ้นงาน/รุ่น Lamp ของใบนี้ */}
       <RequestParts
         regisNo={regisNo}
-        canEdit={canCreate}
+        canEdit={canEditContent}
         parts={request.parts.map((p) => ({
           id: p.id,
           name: p.name,
@@ -192,7 +221,7 @@ export default async function RequestOverviewPage({
           <div className="card empty-state">
             <p className="text-[15px] font-medium text-ink">ยังไม่มีรายการทดสอบในใบนี้</p>
             <p className="text-[13px] text-muted">
-              {canCreate
+              {canEditContent
                 ? "แตกใบนี้เป็นรายการทดสอบย่อยได้ที่ด้านล่าง — 1 รายการ = 1 ชิ้นงาน/หัวข้อทดสอบ ที่มีแผนและสถานะของตัวเอง"
                 : "ทีมแลปจะแตกใบนี้เป็นรายการทดสอบย่อยให้"}
             </p>
@@ -240,7 +269,7 @@ export default async function RequestOverviewPage({
           </div>
         )}
 
-        {canCreate && (
+        {canEditContent && (
           <AddItemForm
             action={addItemBound}
             members={members.map((m) => ({ id: m.id, name: m.name }))}
