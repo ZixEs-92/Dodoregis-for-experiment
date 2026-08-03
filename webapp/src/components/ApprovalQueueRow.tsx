@@ -6,16 +6,10 @@ import { approveRequest, rejectRequest, type ActionResult } from "@/app/actions"
 import { FormErrors } from "@/components/FormMessages";
 import { useConfirm, useToast, useToastOnSaved } from "@/components/ui/Feedback";
 import { APPROVAL_LABEL, APPROVAL_COLOR } from "@/lib/approval";
-import type { ApprovalStatus } from "@/generated/prisma/client";
+// type-only — ไฟล์ต้นทางใช้ prisma (server-only) แต่ import แบบ type ถูก erase ตอน build ไม่ลากมาที่ client bundle
+import type { ApprovableSheet } from "@/lib/approvalQueue";
 
-export type QueueRow = {
-  regisNo: string;
-  deptName: string;
-  requester: string;
-  testObject: string | null;
-  approvalStatus: ApprovalStatus;
-  daysWaiting: number | null;
-};
+export type QueueRow = ApprovableSheet;
 
 const initial: ActionResult = { ok: true, errors: [] };
 

@@ -2,12 +2,13 @@
 // คืน null = ผ่าน, คืน string = ข้อความเหตุผลที่ถูกปฏิเสธ
 // นโยบาย: "ดู" เปิดให้ทุกคน (ไม่ต้องล็อกอิน) แต่ "แก้/สร้าง" ต้องล็อกอิน + role พอ
 import { redirect } from "next/navigation";
-import { getCurrentUser, type CurrentUser } from "@/lib/auth";
+import { getCurrentUser, toScope, type CurrentUser } from "@/lib/auth";
 import {
   canCreateRequest,
   canEditTests,
   canManageSystem,
   canPlanWork,
+  canReachApprovals,
   canViewLabWide,
 } from "@/lib/roles";
 import type { UserRole } from "@/generated/prisma/client";
@@ -71,8 +72,7 @@ export async function guardPageAdmin(nextPath?: string): Promise<CurrentUser> {
 export async function guardPageApprove(nextPath?: string): Promise<CurrentUser> {
   const u = await getCurrentUser();
   if (!u) toLogin(nextPath);
-  const isDeptHeadWithDept = u.role === "DEPT_HEAD" && u.headOfDepartments.length > 0;
-  if (!canPlanWork(u.role) && !isDeptHeadWithDept) redirect("/");
+  if (!canReachApprovals(toScope(u))) redirect("/");
   return u;
 }
 

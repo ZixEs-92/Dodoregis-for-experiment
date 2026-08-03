@@ -5,23 +5,31 @@ import { isOverdue, isUrgent, STATUS_LABEL } from "@/lib/workflow";
 import { testTitle } from "@/lib/format";
 import StatusBadge from "@/components/StatusBadge";
 import { requestRollup, PHASE_LABEL, PHASE_COLOR } from "@/lib/rollup";
+import ApprovalBox from "@/components/home/ApprovalBox";
+import { getApprovableSheets, getMyPendingSheets } from "@/lib/approvalQueue";
+import { canReachApprovals, type Scope } from "@/lib/roles";
 
 /**
- * หน้าแรกของผู้ขอทดสอบ — ตอบคำถามเดียวที่เขามี: "งานที่ส่งไปถึงไหนแล้ว จะเสร็จเมื่อไหร่"
+ * หน้าแรกของผู้ขอทดสอบ/หัวหน้าแผนก — ตอบคำถามเดียวที่เขามี: "งานที่ส่งไปถึงไหนแล้ว จะเสร็จเมื่อไหร่"
  * ไม่แสดง KPI ภายในของทีมแลป (workload รายคน, % ส่งตรงแผน) เพราะไม่ใช่ข้อมูลที่ใช้ตัดสินใจอะไรได้
+ * ใบที่ยังไม่อนุมัติ/ถูกตีกลับ แยกไปกล่อง "รออนุมัติ" ต่างหาก ไม่ปนกับรายการงานปกติด้านล่าง (ซึ่งนับเฉพาะใบที่อนุมัติแล้ว)
  */
 export default async function RequesterHome({
-  departmentId,
+  departmentIds,
   departmentName,
+  scope,
 }: {
-  departmentId: number | null;
+  departmentIds: number[];
   departmentName: string | null;
+  scope: Scope;
 }) {
-  if (!departmentId) {
+  if (departmentIds.length === 0) {
     return (
       <div className="card empty-state">
         <span className="text-[30px] leading-none">🔒</span>
-        <p className="text-[15px] font-medium text-ink">บัญชีของคุณยังไม่ผูกกับแผนก</p>
+        <p className="text-[15px] font-medium text-ink">
+          บัญชีของคุณยังไม่ผูกกับแผนก{scope.role === "DEPT_HEAD" ? "ที่คุม" : ""}
+        </p>
         <p className="text-[13px] text-muted">
           แจ้งผู้ดูแลระบบให้ตั้งค่าแผนกให้ก่อน จึงจะลงทะเบียนงานและดูงานของแผนกได้
         </p>
@@ -29,8 +37,13 @@ export default async function RequesterHome({
     );
   }
 
+  const [myPending, iCanApprove] = await Promise.all([
+    getMyPendingSheets(scope),
+    canReachApprovals(scope) ? getApprovableSheets(scope) : Promise.resolve([]),
+  ]);
+
   const requests = await prisma.testRequest.findMany({
-    where: { requestDeptId: departmentId },
+    where: { requestDeptId: { in: departmentIds }, approvalStatus: "APPROVED" },
     include: { items: { orderBy: { itemNo: "asc" } } },
     orderBy: { requestDate: "desc" },
     take: 50,
@@ -59,6 +72,12 @@ export default async function RequesterHome({
           + ลงทะเบียนงานใหม่
         </Link>
       </div>
+
+      {/* กล่องรออนุมัติ — แยกจากการ์ดงานปกติเสมอ ไม่ให้สับสนว่างานไหน "รับเข้าแลปแล้วจริง" */}
+      {scope.role === "DEPT_HEAD" && (
+        <ApprovalBox title="ใบรอฉันเซ็น" sheets={iCanApprove} mode="sign" />
+      )}
+      <ApprovalBox title="ใบของแผนกที่ยังไม่ผ่านการอนุมัติ" sheets={myPending} mode="mine" />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="กำลังดำเนินการ" value={active.length} sub="ยังไม่ปิดงาน" />

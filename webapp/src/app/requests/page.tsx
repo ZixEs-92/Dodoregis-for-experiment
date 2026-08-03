@@ -3,10 +3,18 @@ import { prisma } from "@/lib/prisma";
 import { ALL_STATUSES, STATUS_LABEL, isOverdue, isDueSoon, isUrgent } from "@/lib/workflow";
 import { testTitle } from "@/lib/format";
 import GroupedRequests, { ItemRow } from "@/components/GroupedRequests";
-import { Prisma, RequestStatus } from "@/generated/prisma/client";
+import { Prisma, RequestStatus, ApprovalStatus } from "@/generated/prisma/client";
 import { guardPageUser } from "@/lib/guard";
 import { toScope } from "@/lib/auth";
 import { departmentFilter, visibleDepartmentIds } from "@/lib/roles";
+import { APPROVAL_LABEL } from "@/lib/approval";
+
+const APPROVAL_FILTER_VALUES: ApprovalStatus[] = [
+  "PENDING_DEPT",
+  "PENDING_LAB",
+  "REJECTED",
+  "APPROVED",
+];
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +28,7 @@ type SearchParams = {
   overdue?: string;
   duesoon?: string;
   unassigned?: string;
+  approval?: string;
 };
 
 /** มุมมองที่ใช้บ่อย — กดครั้งเดียวแทนการตั้งตัวกรองเอง */
@@ -51,9 +60,17 @@ export default async function RequestsPage({
   const where: Prisma.TestItemWhereInput = {};
   if (sp.status) where.status = sp.status as RequestStatus;
   if (sp.owner) where.ownerId = Number(sp.owner);
-  if (sp.dept) where.request = { requestDeptId: Number(sp.dept) };
   if (sp.unassigned === "1") where.ownerId = null;
-  if (deptScoped) where.request = { requestDeptId: departmentFilter(scope) };
+
+  const requestWhere: Prisma.TestRequestWhereInput = {};
+  if (sp.dept) requestWhere.requestDeptId = Number(sp.dept);
+  if (sp.approval && APPROVAL_FILTER_VALUES.includes(sp.approval as ApprovalStatus)) {
+    requestWhere.approvalStatus = sp.approval as ApprovalStatus;
+  }
+  // ขอบเขตแผนกของ requester/หัวหน้าแผนก ทับตัวกรอง dept จาก URL เสมอ
+  if (deptScoped) requestWhere.requestDeptId = departmentFilter(scope);
+  if (Object.keys(requestWhere).length > 0) where.request = requestWhere;
+
   if (sp.q) {
     where.OR = [
       { itemCode: { contains: sp.q } },
@@ -89,13 +106,14 @@ export default async function RequestsPage({
     dept: it.request.requestDept.name,
     requester: it.request.requester,
     requestDate: it.request.requestDate.toISOString(),
+    approvalStatus: it.request.approvalStatus,
   }));
   // ป้ายบอกขอบเขตแผนก — REQUESTER มีแผนกเดียว, DEPT_HEAD อาจคุมได้หลายแผนก
   const scopeDeptNames = user.role === "DEPT_HEAD"
     ? user.headOfDepartments.map((d) => d.name).join(", ")
     : user.department?.name;
 
-  const activeFilterCount = [sp.q, sp.status, sp.dept, sp.owner].filter(Boolean).length;
+  const activeFilterCount = [sp.q, sp.status, sp.dept, sp.owner, sp.approval].filter(Boolean).length;
   const activeView =
     sp.overdue === "1"
       ? "overdue"
@@ -171,6 +189,12 @@ export default async function RequestsPage({
           <option value="">ทุกผู้รับผิดชอบ</option>
           {members.map((m) => (
             <option key={m.id} value={m.id}>{m.name}</option>
+          ))}
+        </select>
+        <select name="approval" defaultValue={sp.approval ?? ""} className="input">
+          <option value="">ทุกสถานะอนุมัติ</option>
+          {APPROVAL_FILTER_VALUES.map((a) => (
+            <option key={a} value={a}>{APPROVAL_LABEL[a]}</option>
           ))}
         </select>
           <div className="col-span-2 flex gap-2 sm:col-span-4">

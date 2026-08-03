@@ -53,6 +53,10 @@ export default function CommandPalette({ role = null }: { role?: UserRole | null
       ...(canPlanWork(role)
         ? ([{ href: "/planning", label: "คิวรอวางแผน", icon: "clock" }] as PageCmd[])
         : []),
+      // เดาแบบหยาบว่าอาจมีสิทธิ์อนุมัติ (ไม่รู้ headOfDepartmentIds ที่นี่) — เซิร์ฟเวอร์ตัดสินจริงที่ guardPageApprove
+      ...(canPlanWork(role) || role === "DEPT_HEAD"
+        ? ([{ href: "/approvals", label: "คิวรออนุมัติ", icon: "check" }] as PageCmd[])
+        : []),
       ...(canManageSystem(role)
         ? ([
             { href: "/admin", label: "ผู้ดูแลระบบ (รวมเครื่องมือ)", icon: "settings" },

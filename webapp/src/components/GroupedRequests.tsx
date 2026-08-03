@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import StatusBadge from "@/components/StatusBadge";
 import { ALL_STATUSES, STATUS_LABEL, STATUS_COLOR } from "@/lib/workflow";
 import { requestRollup, PHASE_LABEL, PHASE_COLOR } from "@/lib/rollup";
-import { RequestStatus } from "@/generated/prisma/client";
+import { APPROVAL_LABEL, APPROVAL_COLOR } from "@/lib/approval";
+import { RequestStatus, ApprovalStatus } from "@/generated/prisma/client";
 
 export type ItemRow = {
   itemCode: string;
@@ -24,6 +25,7 @@ export type ItemRow = {
   dept: string;
   requester: string;
   requestDate: string;
+  approvalStatus: ApprovalStatus;
 };
 
 type ViewMode = "status" | "request";
@@ -226,6 +228,11 @@ export default function GroupedRequests({ items }: { items: ItemRow[] }) {
                   <Link href={`/requests/${sec.regisNo}`} className="font-semibold text-ink hover:text-link">
                     {sec.regisNo}
                   </Link>
+                  {sec.items[0].approvalStatus !== "APPROVED" && (
+                    <span className={`chip ${APPROVAL_COLOR[sec.items[0].approvalStatus]}`}>
+                      {APPROVAL_LABEL[sec.items[0].approvalStatus]}
+                    </span>
+                  )}
                   {(() => {
                     const roll = requestRollup(
                       sec.items.map((it) => ({
@@ -310,6 +317,12 @@ export default function GroupedRequests({ items }: { items: ItemRow[] }) {
                           {it.testTitle && <div className="text-ink font-medium">🧪 {it.testTitle}</div>}
                           <div className={it.testTitle ? "text-[12px] text-muted" : "text-ink"}>{it.partName}</div>
                           {it.partNo && <div className="text-[12px] text-muted">{it.partNo}</div>}
+                          {/* จัดกลุ่มตามใบมีป้ายที่หัวข้อกลุ่มแล้ว — โหมดตามสถานะไม่มีหัวข้อระดับใบ เลยแปะที่แถวแทน */}
+                          {mode === "status" && it.approvalStatus !== "APPROVED" && (
+                            <span className={`chip ${APPROVAL_COLOR[it.approvalStatus]} mt-1`}>
+                              {APPROVAL_LABEL[it.approvalStatus]}
+                            </span>
+                          )}
                         </td>
                         <td className="p-3 whitespace-nowrap">
                           <div className="flex items-center gap-2">

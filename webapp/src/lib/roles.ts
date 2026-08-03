@@ -77,6 +77,11 @@ export function canApproveLab(role: UserRole | null | undefined): boolean {
   return hasRole(role, "ADMIN", "LAB_HEAD");
 }
 
+/** มีสิทธิ์เซ็นอนุมัติอย่างน้อย 1 ชั้นไหม — ใช้เป็นทางเข้าหน้า /approvals และตัวเลขค้างในเมนู */
+export function canReachApprovals(scope: Scope): boolean {
+  return canPlanWork(scope.role) || (scope.role === "DEPT_HEAD" && scope.headOfDepartmentIds.length > 0);
+}
+
 // ── ขอบเขตแผนก (เห็น/แก้เฉพาะแผนกที่เกี่ยวข้อง) ──────────────
 
 /**

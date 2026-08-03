@@ -11,9 +11,13 @@ import {
 import LoadingBoard, { LoadItem } from "@/components/LoadingBoard";
 import { requestRollup, RequestPhase } from "@/lib/rollup";
 import { guardPageUser } from "@/lib/guard";
+import { toScope } from "@/lib/auth";
+import { canPlanWork } from "@/lib/roles";
+import { getApprovableSheets } from "@/lib/approvalQueue";
 import RequesterHome from "@/components/home/RequesterHome";
 import MyWorkBlock from "@/components/home/MyWorkBlock";
 import DepartmentBreakdown from "@/components/home/DepartmentBreakdown";
+import ApprovalBox from "@/components/home/ApprovalBox";
 import Icon from "@/components/ui/Icon";
 
 export const dynamic = "force-dynamic";
@@ -21,32 +25,50 @@ export const dynamic = "force-dynamic";
 export default async function HomePage() {
   // ทั้งระบบต้องล็อกอิน — หน้า login คือประตูทางเข้าเดียว (รวมถึงคนที่สแกน QR มา)
   const user = await guardPageUser();
+  const scope = toScope(user);
 
   // หน้าแรกต่างกันตามบทบาท — คนส่งงานไม่ควรต้องเจอ KPI ภายในของทีมแลป
   if (user.role === "REQUESTER") {
     return (
       <RequesterHome
-        departmentId={user.departmentId}
+        departmentIds={user.departmentId != null ? [user.departmentId] : []}
         departmentName={user.department?.name ?? null}
+        scope={scope}
+      />
+    );
+  }
+  // หัวหน้าแผนกคุมได้หลายแผนก — ใช้หน้าแบบเดียวกับผู้ขอ แต่ scope เป็นแผนกที่คุมทั้งหมด
+  if (user.role === "DEPT_HEAD") {
+    return (
+      <RequesterHome
+        departmentIds={user.headOfDepartments.map((d) => d.id)}
+        departmentName={user.headOfDepartments.map((d) => d.name).join(", ") || null}
+        scope={scope}
       />
     );
   }
 
-  return <TeamDashboard isAdmin={user.role === "ADMIN"} memberId={user.memberId} />;
+  const pendingForMe = canPlanWork(user.role) ? await getApprovableSheets(scope) : [];
+  return (
+    <TeamDashboard isAdmin={user.role === "ADMIN"} memberId={user.memberId} pendingForMe={pendingForMe} />
+  );
 }
 
 async function TeamDashboard({
   isAdmin,
   memberId,
+  pendingForMe,
 }: {
   isAdmin: boolean;
   memberId: number | null;
+  pendingForMe: Awaited<ReturnType<typeof getApprovableSheets>>;
 }) {
   const items = await prisma.testItem.findMany({
     include: {
       owner: true,
       testRuns: { include: { loadingOwner: true } },
       reports: true,
+      request: { select: { approvalStatus: true } },
     },
   });
   const requestCount = await prisma.testRequest.count();
@@ -87,8 +109,10 @@ async function TeamDashboard({
   const active = items.filter(
     (i) => i.status !== "S8_CLOSED" && i.status !== "S10_CANCEL"
   );
-  // งานรอวางแผน (ยังไม่มอบหมาย) — โชว์แบนเนอร์ให้ admin
-  const unassignedCount = active.filter((i) => !i.ownerId).length;
+  // งานรอวางแผน (ยังไม่มอบหมาย + อนุมัติแล้ว) — ให้ตรงกับที่ /planning จะแสดงจริง
+  const unassignedCount = active.filter(
+    (i) => !i.ownerId && i.request.approvalStatus === "APPROVED",
+  ).length;
   const workload = new Map<string, number>();
   for (const i of active) {
     const names = new Set<string>();
@@ -153,6 +177,9 @@ async function TeamDashboard({
           <span className="ml-auto text-[13px] text-link">ไปที่คิววางแผน →</span>
         </Link>
       )}
+
+      {/* กล่องรออนุมัติ — แยกจากการ์ดงานปกติเสมอ (admin/lab_head เท่านั้นที่เซ็นอนุมัติได้) */}
+      <ApprovalBox title="ใบรอฉันเซ็น" sheets={pendingForMe} mode="sign" />
 
       {/* การ์ดสรุป: วิศวกรไม่ต้องเห็น % ส่งตรงแผน ซึ่งเป็นตัวชี้วัดของหัวหน้า */}
       <div className={`grid grid-cols-2 gap-3 ${isAdmin ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>

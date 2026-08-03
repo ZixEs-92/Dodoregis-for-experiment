@@ -10,13 +10,14 @@ export const metadata = { title: "ตั้งค่าระบบ — Dodoregi
 export default async function SettingsHubPage() {
   await guardPageAdmin("/settings");
 
-  const [deptCount, memberCount, partLocCount, finishedLocCount, userCount] =
+  const [deptCount, memberCount, partLocCount, finishedLocCount, userCount, noHeadDeptCount] =
     await Promise.all([
       prisma.department.count({ where: { active: true } }),
       prisma.member.count({ where: { active: true } }),
       prisma.partLocation.count({ where: { active: true } }),
       prisma.finishedLocation.count({ where: { active: true } }),
       prisma.user.count({ where: { active: true } }),
+      prisma.department.count({ where: { active: true, heads: { none: {} } } }),
     ]);
   const line = lineConfig();
   const lineReady = line.hasToken && line.hasDestination;
@@ -50,6 +51,14 @@ export default async function SettingsHubPage() {
       desc: "ผูก LINE Official Account เพื่อส่งแจ้งเตือนงานใกล้/เลยกำหนด",
       stat: lineReady ? "ตั้งค่าแล้ว พร้อมส่ง" : "ยังไม่ได้ตั้งค่า",
       warn: !lineReady,
+    },
+    {
+      href: "/settings/approvals",
+      icon: "check",
+      title: "การอนุมัติ",
+      desc: "เปิด/ปิดชั้นอนุมัติหัวหน้าแผนก · ดูรายชื่อหัวหน้าแผนก/หัวหน้าแลป",
+      stat: noHeadDeptCount > 0 ? `${noHeadDeptCount} แผนกยังไม่มีหัวหน้า` : "ทุกแผนกมีหัวหน้าแล้ว",
+      warn: noHeadDeptCount > 0,
     },
   ];
 
@@ -87,8 +96,8 @@ export default async function SettingsHubPage() {
       </div>
 
       <div className="card p-4 text-[13px] text-muted">
-        💡 การ &quot;ดู&quot; ข้อมูลเปิดให้ทุกคนโดยไม่ต้องล็อกอิน (เพื่อให้สแกน QR หน้างานได้สะดวก) —
-        สร้างบัญชีเฉพาะคนที่ต้องลงงานหรือแก้ไขข้อมูลเท่านั้น
+        💡 ทุกคนต้องมีบัญชีและเข้าสู่ระบบก่อนถึงจะดูข้อมูลได้ (รวมถึงคนที่สแกน QR หน้างาน) —
+        สร้างบัญชีให้ครบทุกคนที่ต้องใช้งาน
       </div>
     </div>
   );

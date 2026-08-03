@@ -11,10 +11,15 @@ export const metadata = { title: "คิวรอวางแผน — Dodoregi
 export default async function PlanningPage() {
   await guardPagePlan("/planning");
 
-  // งานที่ยังไม่มอบหมายและยังไม่จบ/ยกเลิก — เรียงใบเก่าสุดก่อน
+  // งานที่ยังไม่มอบหมายและยังไม่จบ/ยกเลิก — เฉพาะใบที่อนุมัติแล้ว (ใบที่ยังรอเซ็นอยู่คิว /approvals ไม่ใช่ที่นี่)
+  // เรียงใบเก่าสุดก่อน
   const [items, members] = await Promise.all([
     prisma.testItem.findMany({
-      where: { ownerId: null, status: { notIn: ["S8_CLOSED", "S10_CANCEL"] } },
+      where: {
+        ownerId: null,
+        status: { notIn: ["S8_CLOSED", "S10_CANCEL"] },
+        request: { approvalStatus: "APPROVED" },
+      },
       include: { request: { include: { requestDept: true } } },
       orderBy: [{ request: { requestDate: "asc" } }, { itemCode: "asc" }],
     }),

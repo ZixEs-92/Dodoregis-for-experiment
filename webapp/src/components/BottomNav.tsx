@@ -18,9 +18,11 @@ type NavUser = { name: string; role: UserRole } | null;
 export default function BottomNav({
   user = null,
   unreadCount = 0,
+  approvalCount = 0,
 }: {
   user?: NavUser;
   unreadCount?: number;
+  approvalCount?: number;
 }) {
   const pathname = usePathname();
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -38,9 +40,21 @@ export default function BottomNav({
   const isOn = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
+  // เดาแบบหยาบว่าอาจมีสิทธิ์อนุมัติ (ไม่รู้ headOfDepartmentIds ฝั่ง client) — เซิร์ฟเวอร์ตัดสินจริงที่ guardPageApprove
+  const mayApprove = canPlanWork(user?.role) || user?.role === "DEPT_HEAD";
+
   const moreLinks: { href: string; label: string; icon: IconName }[] = [
     { href: "/board", label: "บอร์ดงาน", icon: "board" },
     { href: "/schedule", label: "ตารางงาน", icon: "calendar" },
+    ...(mayApprove
+      ? ([
+          {
+            href: "/approvals",
+            label: approvalCount > 0 ? `รออนุมัติ (${approvalCount})` : "รออนุมัติ",
+            icon: "check",
+          },
+        ] as const)
+      : []),
     // admin เข้า /planning ผ่าน "ผู้ดูแลระบบ" อยู่แล้ว — โชว์ "วางแผน" ตรงให้ lab_head เท่านั้น กันซ้ำ
     ...(canPlanWork(user?.role) && !canManageSystem(user?.role)
       ? ([{ href: "/planning", label: "วางแผน", icon: "clock" }] as const)

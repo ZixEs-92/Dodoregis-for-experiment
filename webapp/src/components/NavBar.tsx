@@ -20,12 +20,16 @@ const adminLinks = [{ href: "/admin", label: "ผู้ดูแลระบบ"
 
 export default function NavBar({
   unreadCount = 0,
+  approvalCount = 0,
   user = null,
 }: {
   unreadCount?: number;
+  approvalCount?: number;
   user?: { name: string; role: UserRole } | null;
 }) {
   const pathname = usePathname();
+  // เงื่อนไขนี้เป็นการเดาแบบหยาบ (ไม่รู้ headOfDepartmentIds ฝั่ง client) — เซิร์ฟเวอร์เป็นคนตัดสินจริงที่ guardPageApprove
+  const mayApprove = user != null && (canPlanWork(user.role) || user.role === "DEPT_HEAD");
   // ทั้งระบบต้องล็อกอิน — ยังไม่ล็อกอินก็ไม่ต้องโชว์เมนู เพราะกดไปก็เด้งกลับมาหน้านี้
   // admin เข้า /planning ผ่านหน้า "ผู้ดูแลระบบ" อยู่แล้ว — ลิงก์ "วางแผน" ตรงจึงเอาไว้ให้ lab_head (ไม่ใช่ admin) พอ กันซ้ำ
   const links = user
@@ -99,6 +103,24 @@ export default function NavBar({
                 </span>
               )}
             </Link>
+
+            {mayApprove && (
+              <Link
+                href="/approvals"
+                aria-label={`คิวรออนุมัติ${approvalCount > 0 ? ` ${approvalCount} ใบ` : ""}`}
+                title="คิวรออนุมัติ"
+                className={`btn-icon relative hidden sm:grid ${
+                  pathname.startsWith("/approvals") ? "bg-ink text-white hover:bg-ink" : ""
+                }`}
+              >
+                <Icon name="check" />
+                {approvalCount > 0 && (
+                  <span className="absolute top-0.5 right-0.5 grid place-items-center min-w-[18px] h-[18px] px-1 rounded-full bg-coral text-white text-[11px] font-semibold">
+                    {approvalCount > 99 ? "99+" : approvalCount}
+                  </span>
+                )}
+              </Link>
+            )}
 
             {canCreateRequest(user.role) && (
               <Link href="/requests/new" className="btn-primary btn-sm hidden sm:inline-flex">

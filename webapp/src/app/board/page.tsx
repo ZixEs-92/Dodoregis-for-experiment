@@ -23,11 +23,15 @@ export default async function BoardPage({
   const canEdit = canEditTests(user.role);
 
   // requester/หัวหน้าแผนก เห็นเฉพาะขอบเขตแผนกตัวเอง เหมือนหน้ารายการงาน
+  // บอร์ด = งานที่แลปรับแล้ว — ใบที่ยังไม่อนุมัติไม่ขึ้นบอร์ด (ไปดูที่ /approvals หรือกล่องรออนุมัติหน้าแรกแทน)
   const scope = toScope(user);
   const deptFilter = departmentFilter(scope);
   const where: Prisma.TestItemWhereInput = {
     status: { notIn: ["S10_CANCEL"] },
-    ...(deptFilter ? { request: { requestDeptId: deptFilter } } : {}),
+    request: {
+      approvalStatus: "APPROVED",
+      ...(deptFilter ? { requestDeptId: deptFilter } : {}),
+    },
   };
 
   const items = await prisma.testItem.findMany({
