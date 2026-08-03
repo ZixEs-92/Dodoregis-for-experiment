@@ -2,14 +2,24 @@
 // (ไม่ import โมดูล server-only เช่น next/headers, prisma) — type-only import ถูก erase ตอน build
 import type { UserRole } from "@/generated/prisma/client";
 
+// LAB_HEAD/DEPT_HEAD เพิ่มโดย Phase 4 (migration approval_flow) — ตัวช่วยสิทธิ์ทั้งชุดจะตามมาใน Phase 4b
 export const ROLE_LABEL: Record<UserRole, string> = {
   ADMIN: "ผู้ดูแลระบบ",
+  LAB_HEAD: "หัวหน้าแผนกทดสอบ",
   ENGINEER: "วิศวกรทดสอบ",
+  DEPT_HEAD: "หัวหน้าแผนก",
   REQUESTER: "ผู้ขอทดสอบ",
   VIEWER: "ผู้ดูข้อมูล",
 };
 
-export const ALL_ROLES: UserRole[] = ["ADMIN", "ENGINEER", "REQUESTER", "VIEWER"];
+export const ALL_ROLES: UserRole[] = [
+  "ADMIN",
+  "LAB_HEAD",
+  "ENGINEER",
+  "DEPT_HEAD",
+  "REQUESTER",
+  "VIEWER",
+];
 
 /** มีสิทธิ์ระดับใดระดับหนึ่งใน roles ที่กำหนดหรือไม่ */
 export function hasRole(role: UserRole | undefined | null, ...roles: UserRole[]): boolean {
