@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import LoginForm from "@/components/LoginForm";
 
+// ผลลัพธ์ขึ้นกับ session (redirect ออกถ้าล็อกอินอยู่แล้ว) — ต้อง dynamic เสมอ กันแคชสถานะล็อกอินข้ามคน
+export const dynamic = "force-dynamic";
 export const metadata = { title: "เข้าสู่ระบบ — Dodoregis" };
 
 export default async function LoginPage({

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Icon, { type IconName } from "@/components/ui/Icon";
 import { STATUS_LABEL, STATUS_COLOR } from "@/lib/workflow";
 import type { RequestStatus, UserRole } from "@/generated/prisma/client";
-import { canCreateRequest, canEditTests, canPlanAndManage } from "@/lib/roles";
+import { canCreateRequest, canManageSystem, canPlanWork, canViewLabWide } from "@/lib/roles";
 
 type Hit = {
   itemCode: string;
@@ -43,17 +43,19 @@ export default function CommandPalette({ role = null }: { role?: UserRole | null
         ? ([{ href: "/requests/new", label: "ลงทะเบียนงานใหม่", icon: "plus" }] as PageCmd[])
         : []),
       // หน้าของทีมแลป — วิศวกรเข้าได้ด้วย ไม่ใช่เฉพาะ admin
-      ...(canEditTests(role)
+      ...(canViewLabWide(role)
         ? ([
             { href: "/analytics", label: "วิเคราะห์ / KPI", icon: "chart" },
             { href: "/reports", label: "รายงาน + export", icon: "file" },
             { href: "/labels", label: "พิมพ์ QR Label", icon: "scan" },
           ] as PageCmd[])
         : []),
-      ...(canPlanAndManage(role)
+      ...(canPlanWork(role)
+        ? ([{ href: "/planning", label: "คิวรอวางแผน", icon: "clock" }] as PageCmd[])
+        : []),
+      ...(canManageSystem(role)
         ? ([
             { href: "/admin", label: "ผู้ดูแลระบบ (รวมเครื่องมือ)", icon: "settings" },
-            { href: "/planning", label: "คิวรอวางแผน", icon: "clock" },
             { href: "/settings", label: "ตั้งค่าระบบ", icon: "settings" },
           ] as PageCmd[])
         : []),

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logout } from "@/app/login/actions";
-import { ROLE_LABEL, canCreateRequest } from "@/lib/roles";
+import { ROLE_LABEL, canCreateRequest, canManageSystem, canPlanWork } from "@/lib/roles";
 import Icon from "@/components/ui/Icon";
 import CommandPalette from "@/components/CommandPalette";
 import type { UserRole } from "@/generated/prisma/client";
@@ -15,6 +15,7 @@ const baseLinks = [
   { href: "/requests", label: "รายการงาน" },
 ];
 const memberLinks = [{ href: "/schedule", label: "ตารางงาน" }];
+const planLinks = [{ href: "/planning", label: "วางแผน" }];
 const adminLinks = [{ href: "/admin", label: "ผู้ดูแลระบบ" }];
 
 export default function NavBar({
@@ -26,8 +27,14 @@ export default function NavBar({
 }) {
   const pathname = usePathname();
   // ทั้งระบบต้องล็อกอิน — ยังไม่ล็อกอินก็ไม่ต้องโชว์เมนู เพราะกดไปก็เด้งกลับมาหน้านี้
+  // admin เข้า /planning ผ่านหน้า "ผู้ดูแลระบบ" อยู่แล้ว — ลิงก์ "วางแผน" ตรงจึงเอาไว้ให้ lab_head (ไม่ใช่ admin) พอ กันซ้ำ
   const links = user
-    ? [...baseLinks, ...memberLinks, ...(user.role === "ADMIN" ? adminLinks : [])]
+    ? [
+        ...baseLinks,
+        ...memberLinks,
+        ...(canPlanWork(user.role) && !canManageSystem(user.role) ? planLinks : []),
+        ...(canManageSystem(user.role) ? adminLinks : []),
+      ]
     : [];
 
   return (

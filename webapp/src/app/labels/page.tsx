@@ -4,6 +4,8 @@ import { guardPageTeam } from "@/lib/guard";
 import { generateQrDataUrl, qrMode } from "@/lib/qr";
 import PrintButton from "@/components/PrintButton";
 
+// สิทธิ์เข้าหน้านี้ขึ้นกับ session — ต้อง dynamic เสมอ กัน Next แคชผลของคนแรกไปให้คนถัดไปที่ URL เดียวกัน
+export const dynamic = "force-dynamic";
 export const metadata = { title: "พิมพ์ QR Label — Dodoregis" };
 
 export default async function LabelsPage({

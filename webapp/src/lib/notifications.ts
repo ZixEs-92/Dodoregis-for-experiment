@@ -106,13 +106,17 @@ export async function notifyNewRequest(opts: {
   });
 }
 
-/** จำนวนแจ้งเตือนที่ยังไม่อ่าน — ส่ง departmentId มาถ้าเป็นผู้ขอทดสอบ (นับเฉพาะแผนกตัวเอง) */
-export async function getUnreadCount(departmentId?: number | null): Promise<number> {
+/**
+ * จำนวนแจ้งเตือนที่ยังไม่อ่าน — ส่ง departmentIds มาถ้าเห็นแค่บางแผนก (requester/dept_head)
+ * null = เห็นทุกแผนก (ทีมแลป/viewer) · [] = ยังไม่ผูกแผนกไหนเลย นับเป็น 0
+ */
+export async function getUnreadCount(departmentIds?: number[] | null): Promise<number> {
+  if (departmentIds && departmentIds.length === 0) return 0;
   return prisma.notification.count({
     where: {
       readAt: null,
-      ...(departmentId != null
-        ? { item: { request: { requestDeptId: departmentId } } }
+      ...(departmentIds != null
+        ? { item: { request: { requestDeptId: { in: departmentIds } } } }
         : {}),
     },
   });

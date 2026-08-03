@@ -5,7 +5,8 @@ import { testTitle } from "@/lib/format";
 import GroupedRequests, { ItemRow } from "@/components/GroupedRequests";
 import { Prisma, RequestStatus } from "@/generated/prisma/client";
 import { guardPageUser } from "@/lib/guard";
-import { isDeptScoped } from "@/lib/roles";
+import { toScope } from "@/lib/auth";
+import { departmentFilter, visibleDepartmentIds } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -41,16 +42,18 @@ export default async function RequestsPage({
     prisma.member.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
   ]);
 
-  // requester ถูกจำกัดให้เห็นเฉพาะงานแผนกตัวเอง (ทับตัวกรอง dept จาก URL)
+  // requester/หัวหน้าแผนก ถูกจำกัดให้เห็นเฉพาะงานในขอบเขตแผนกตัวเอง (ทับตัวกรอง dept จาก URL)
   const user = await guardPageUser("/requests");
-  const deptScoped = isDeptScoped(user.role, user.departmentId);
+  const scope = toScope(user);
+  const scopedDeptIds = visibleDepartmentIds(scope);
+  const deptScoped = scopedDeptIds !== null;
 
   const where: Prisma.TestItemWhereInput = {};
   if (sp.status) where.status = sp.status as RequestStatus;
   if (sp.owner) where.ownerId = Number(sp.owner);
   if (sp.dept) where.request = { requestDeptId: Number(sp.dept) };
   if (sp.unassigned === "1") where.ownerId = null;
-  if (deptScoped) where.request = { requestDeptId: user.departmentId! };
+  if (deptScoped) where.request = { requestDeptId: departmentFilter(scope) };
   if (sp.q) {
     where.OR = [
       { itemCode: { contains: sp.q } },
@@ -87,6 +90,11 @@ export default async function RequestsPage({
     requester: it.request.requester,
     requestDate: it.request.requestDate.toISOString(),
   }));
+  // ป้ายบอกขอบเขตแผนก — REQUESTER มีแผนกเดียว, DEPT_HEAD อาจคุมได้หลายแผนก
+  const scopeDeptNames = user.role === "DEPT_HEAD"
+    ? user.headOfDepartments.map((d) => d.name).join(", ")
+    : user.department?.name;
+
   const activeFilterCount = [sp.q, sp.status, sp.dept, sp.owner].filter(Boolean).length;
   const activeView =
     sp.overdue === "1"
@@ -105,7 +113,9 @@ export default async function RequestsPage({
         <h1 className="text-[22px] font-medium text-ink sm:text-[26px]">รายการงานทดสอบ</h1>
         <p className="text-[14px] text-muted mt-0.5">
           จัดกลุ่มตามใบรีเควส · แสดงสถานะแยกแต่ละ item
-          {deptScoped && <span className="text-info"> · เฉพาะแผนก {user.department!.name}</span>}
+          {deptScoped && scopeDeptNames && (
+            <span className="text-info"> · เฉพาะแผนก {scopeDeptNames}</span>
+          )}
         </p>
       </div>
 

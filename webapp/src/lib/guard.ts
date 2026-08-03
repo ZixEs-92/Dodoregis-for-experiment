@@ -3,7 +3,13 @@
 // นโยบาย: "ดู" เปิดให้ทุกคน (ไม่ต้องล็อกอิน) แต่ "แก้/สร้าง" ต้องล็อกอิน + role พอ
 import { redirect } from "next/navigation";
 import { getCurrentUser, type CurrentUser } from "@/lib/auth";
-import { canCreateRequest, canEditTests, canPlanAndManage } from "@/lib/roles";
+import {
+  canCreateRequest,
+  canEditTests,
+  canManageSystem,
+  canPlanWork,
+  canViewLabWide,
+} from "@/lib/roles";
 import type { UserRole } from "@/generated/prisma/client";
 
 async function currentRole(): Promise<UserRole | null> {
@@ -34,19 +40,39 @@ export async function guardPageCreate(nextPath?: string): Promise<CurrentUser> {
   return u;
 }
 
-/** หน้าของทีมแลป (engineer + admin) — เช่น รายงาน/วิเคราะห์/พิมพ์ label */
+/** หน้าของทีมแลป (engineer/lab_head/admin) — เช่น รายงาน/วิเคราะห์/พิมพ์ label */
 export async function guardPageTeam(nextPath?: string): Promise<CurrentUser> {
   const u = await getCurrentUser();
   if (!u) toLogin(nextPath);
-  if (!canEditTests(u.role)) redirect("/");
+  if (!canViewLabWide(u.role)) redirect("/");
   return u;
 }
 
-/** หน้าเฉพาะ admin */
+/** หน้าวางแผน/มอบหมายงาน (admin + lab_head) — เช่น /planning */
+export async function guardPagePlan(nextPath?: string): Promise<CurrentUser> {
+  const u = await getCurrentUser();
+  if (!u) toLogin(nextPath);
+  if (!canPlanWork(u.role)) redirect("/");
+  return u;
+}
+
+/** หน้าจัดการระบบ (master data / ผู้ใช้ / ตั้งค่า) — admin เท่านั้น */
 export async function guardPageAdmin(nextPath?: string): Promise<CurrentUser> {
   const u = await getCurrentUser();
   if (!u) toLogin(nextPath);
-  if (!canPlanAndManage(u.role)) redirect("/");
+  if (!canManageSystem(u.role)) redirect("/");
+  return u;
+}
+
+/**
+ * หน้าคิวอนุมัติ /approvals (Phase 4c) — admin/lab_head เห็นได้เสมอ, dept_head ต้องคุมอย่างน้อย 1 แผนก
+ * เช็คนี้แค่ "มีสิทธิ์เข้าหน้านี้ไหม" — ใบไหนอนุมัติได้จริงกรองอีกชั้นในหน้าด้วย headOfDepartmentIds
+ */
+export async function guardPageApprove(nextPath?: string): Promise<CurrentUser> {
+  const u = await getCurrentUser();
+  if (!u) toLogin(nextPath);
+  const isDeptHeadWithDept = u.role === "DEPT_HEAD" && u.headOfDepartments.length > 0;
+  if (!canPlanWork(u.role) && !isDeptHeadWithDept) redirect("/");
   return u;
 }
 
@@ -69,9 +95,16 @@ export async function ensureEditTests(): Promise<string | null> {
     : "ไม่มีสิทธิ์แก้ไข — ต้องเข้าสู่ระบบเป็นวิศวกรทดสอบขึ้นไป";
 }
 
-/** วางแผน/มอบหมาย/จัดการ master + users — admin เท่านั้น */
-export async function ensurePlanManage(): Promise<string | null> {
-  return canPlanAndManage(await currentRole())
+/** วางแผนงาน (มอบหมายผู้รับผิดชอบ + ลงวันที่) — admin + หัวหน้าแลป */
+export async function ensurePlanWork(): Promise<string | null> {
+  return canPlanWork(await currentRole())
+    ? null
+    : "เฉพาะผู้ดูแลระบบหรือหัวหน้าแผนกทดสอบเท่านั้น";
+}
+
+/** จัดการระบบ — master data / ผู้ใช้ / ตั้งค่า — admin เท่านั้น */
+export async function ensureManageSystem(): Promise<string | null> {
+  return canManageSystem(await currentRole())
     ? null
     : "เฉพาะผู้ดูแลระบบเท่านั้น";
 }

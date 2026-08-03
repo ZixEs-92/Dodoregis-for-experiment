@@ -1,6 +1,6 @@
 import { toCsv } from "@/lib/csv";
 import { getCurrentUser } from "@/lib/auth";
-import { canEditTests } from "@/lib/roles";
+import { canViewLabWide } from "@/lib/roles";
 import {
   getAllReportItems,
   getAllRunRows,
@@ -34,7 +34,7 @@ export async function GET(request: Request) {
   // ไฟล์นี้คือข้อมูลทั้งปีทุกแผนก — เปิดให้เฉพาะทีมแลป
   const user = await getCurrentUser();
   if (!user) return new Response("กรุณาเข้าสู่ระบบก่อน", { status: 401 });
-  if (!canEditTests(user.role)) {
+  if (!canViewLabWide(user.role)) {
     return new Response("เฉพาะทีมแลปเท่านั้น", { status: 403 });
   }
 

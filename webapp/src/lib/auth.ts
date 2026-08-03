@@ -11,6 +11,7 @@ import {
   signSessionToken,
   verifySessionToken,
 } from "@/lib/session";
+import type { Scope } from "@/lib/roles";
 import type { UserRole } from "@/generated/prisma/client";
 
 export { SESSION_COOKIE };
@@ -59,13 +60,23 @@ export const getCurrentUser = cache(async () => {
   if (!p) return null;
   const user = await prisma.user.findUnique({
     where: { id: p.uid },
-    include: { department: true, member: true },
+    // headOfDepartments: แผนกที่ user นี้เป็นหัวหน้า (DEPT_HEAD คุมได้หลายแผนก) — ดู lib/roles.ts Scope
+    include: { department: true, member: true, headOfDepartments: true },
   });
   if (!user || !user.active) return null;
   return user;
 });
 
 export type CurrentUser = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
+
+/** แปลง user ปัจจุบัน → Scope ที่ lib/roles.ts ใช้ตัดสินสิทธิ์เชิงแผนก */
+export function toScope(user: CurrentUser): Scope {
+  return {
+    role: user.role,
+    departmentId: user.departmentId,
+    headOfDepartmentIds: user.headOfDepartments.map((d) => d.id),
+  };
+}
 
 /** บังคับให้ล็อกอิน — ไม่งั้น redirect ไป /login (ใช้ใน Phase 3b) */
 export async function requireUser(): Promise<CurrentUser> {

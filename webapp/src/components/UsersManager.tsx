@@ -5,6 +5,7 @@ import {
   createUserAccount,
   resetUserPassword,
   setUserActive,
+  setUserHeadDepartments,
   type UserActionResult,
 } from "@/app/settings/users/actions";
 import { FormErrors, FormSaved } from "@/components/FormMessages";
@@ -22,6 +23,7 @@ export type UserRow = {
   active: boolean;
   departmentName: string | null;
   memberName: string | null;
+  headDepartments: Option[]; // เฉพาะ role DEPT_HEAD — แผนกที่คุม (คุมได้หลายแผนก)
   lastLoginAt: string | null; // แสดงผลแล้ว (formatted) หรือ null
 };
 
@@ -61,7 +63,12 @@ export default function UsersManager({
         ) : (
           <ul className="flex flex-col gap-2 mt-4">
             {users.map((u) => (
-              <UserRowItem key={u.id} user={u} isSelf={u.id === currentUserId} />
+              <UserRowItem
+                key={u.id}
+                user={u}
+                isSelf={u.id === currentUserId}
+                departments={departments}
+              />
             ))}
           </ul>
         )}
@@ -119,7 +126,27 @@ function CreateUserCard({ departments, members }: { departments: Option[]; membe
             </select>
           </Field>
         )}
-        {role === "ENGINEER" && (
+        {role === "DEPT_HEAD" && (
+          <div className="sm:col-span-2">
+            <span className="label-text">แผนกที่คุม (เลือกได้หลายแผนก) *</span>
+            {departments.length === 0 ? (
+              <p className="text-[12px] text-muted mt-1">ยังไม่มีแผนกในระบบ — เพิ่มที่หน้าข้อมูลระบบก่อน</p>
+            ) : (
+              <div className="mt-1.5 flex flex-wrap gap-2">
+                {departments.map((d) => (
+                  <label
+                    key={d.id}
+                    className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-hairline px-3 text-[13px] text-body transition-colors hover:bg-surface-soft has-[:checked]:border-ink has-[:checked]:bg-ink has-[:checked]:text-white"
+                  >
+                    <input type="checkbox" name="department_ids" value={d.id} className="sr-only" />
+                    {d.name}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        {(role === "ENGINEER" || role === "LAB_HEAD") && (
           <Field label="ผูกกับรายชื่อทีม (สำหรับ workload/มอบหมาย)">
             <select name="member" className="input" defaultValue="">
               <option value="">- ไม่ผูก -</option>
@@ -140,17 +167,45 @@ function CreateUserCard({ departments, members }: { departments: Option[]; membe
   );
 }
 
-function UserRowItem({ user, isSelf }: { user: UserRow; isSelf: boolean }) {
+function UserRowItem({
+  user,
+  isSelf,
+  departments,
+}: {
+  user: UserRow;
+  isSelf: boolean;
+  departments: Option[];
+}) {
   const [showReset, setShowReset] = useState(false);
+  const [showDepts, setShowDepts] = useState(false);
   const [resetState, resetAction, resetPending] = useActionState(
     resetUserPassword.bind(null, user.id),
     initial,
   );
   const [toggling, startToggle] = useTransition();
   const [toggleError, setToggleError] = useState<string | null>(null);
+  const [savingDepts, startSaveDepts] = useTransition();
+  const [deptError, setDeptError] = useState<string | null>(null);
   const confirm = useConfirm();
   const toast = useToast();
   useToastOnSaved(resetState, `ตั้งรหัสผ่านใหม่ให้ ${user.displayName} แล้ว`);
+
+  async function onSaveDepts(fd: FormData) {
+    setDeptError(null);
+    const departmentIds = fd.getAll("department_ids").map(Number);
+    if (departmentIds.length === 0) {
+      setDeptError("ต้องเลือกอย่างน้อย 1 แผนก");
+      return;
+    }
+    startSaveDepts(async () => {
+      const r = await setUserHeadDepartments(user.id, departmentIds);
+      if (!r.ok) setDeptError(r.errors[0] ?? "เกิดข้อผิดพลาด");
+      else {
+        toast(`ปรับแผนกที่คุมของ ${user.displayName} แล้ว`, "success");
+        setShowDepts(false);
+      }
+    });
+  }
 
   async function onToggle() {
     setToggleError(null);
@@ -187,10 +242,23 @@ function UserRowItem({ user, isSelf }: { user: UserRow; isSelf: boolean }) {
             @{user.username}
             {user.departmentName && ` · แผนก ${user.departmentName}`}
             {user.memberName && ` · ทีม ${user.memberName}`}
+            {user.role === "DEPT_HEAD" &&
+              (user.headDepartments.length > 0
+                ? ` · คุมแผนก ${user.headDepartments.map((d) => d.name).join(", ")}`
+                : " · ยังไม่ได้กำหนดแผนกที่คุม")}
             {user.lastLoginAt ? ` · เข้าใช้ล่าสุด ${user.lastLoginAt}` : " · ยังไม่เคยเข้าใช้"}
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {user.role === "DEPT_HEAD" && (
+            <button
+              type="button"
+              onClick={() => setShowDepts((s) => !s)}
+              className="text-[12px] text-link hover:underline"
+            >
+              {showDepts ? "ยกเลิก" : "แก้แผนกที่คุม"}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setShowReset((s) => !s)}
@@ -212,6 +280,36 @@ function UserRowItem({ user, isSelf }: { user: UserRow; isSelf: boolean }) {
       </div>
 
       {toggleError && <p className="text-[12px] text-coral mt-2">{toggleError}</p>}
+
+      {showDepts && (
+        <form
+          action={onSaveDepts}
+          className="mt-3 flex flex-col gap-2 rounded-lg border border-hairline p-3"
+        >
+          <span className="label-text">แผนกที่คุม (เลือกได้หลายแผนก)</span>
+          <div className="flex flex-wrap gap-2">
+            {departments.map((d) => (
+              <label
+                key={d.id}
+                className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-hairline px-3 text-[13px] text-body transition-colors hover:bg-surface-soft has-[:checked]:border-ink has-[:checked]:bg-ink has-[:checked]:text-white"
+              >
+                <input
+                  type="checkbox"
+                  name="department_ids"
+                  value={d.id}
+                  defaultChecked={user.headDepartments.some((h) => h.id === d.id)}
+                  className="sr-only"
+                />
+                {d.name}
+              </label>
+            ))}
+          </div>
+          {deptError && <p className="text-[12px] text-coral">{deptError}</p>}
+          <button type="submit" disabled={savingDepts} className="btn-secondary btn-sm w-fit">
+            {savingDepts ? "กำลังบันทึก..." : "บันทึกแผนกที่คุม"}
+          </button>
+        </form>
+      )}
 
       {showReset && (
         <form action={resetAction} className="flex gap-2 mt-3 items-start flex-wrap">

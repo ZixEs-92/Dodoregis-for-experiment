@@ -12,12 +12,17 @@ import RequestParts from "@/components/RequestParts";
 import AttachmentsSection from "@/components/AttachmentsSection";
 import { addItem, uploadAttachment } from "@/app/actions";
 import { guardPageUser } from "@/lib/guard";
+import { toScope } from "@/lib/auth";
 import {
   canAttachToRequest,
   canCreateRequest,
   canEditTests,
   canViewRequest,
 } from "@/lib/roles";
+
+// บังคับ dynamic เสมอ — หน้านี้ผลลัพธ์ขึ้นกับ session ผู้ใช้ (canViewRequest/canEdit/canAttach)
+// ถ้าปล่อยให้ Next cache ผลตาม URL เฉย ๆ ผู้ใช้คนอื่นที่เปิด URL เดียวกันจะได้ผล 404/สิทธิ์ของคนแรกที่แคชไว้แทน
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params,
@@ -53,8 +58,9 @@ export default async function RequestOverviewPage({
   });
 
   if (!request) notFound();
-  // ผู้ขอทดสอบเดา URL ใบของแผนกอื่นไม่ได้ — ตอบ 404 เหมือนไม่มีใบนี้ ไม่บอกว่ามีอยู่
-  if (!canViewRequest(currentUser.role, currentUser.departmentId, request.requestDeptId)) {
+  const scope = toScope(currentUser);
+  // ผู้ขอทดสอบ/หัวหน้าแผนกเดา URL ใบนอกขอบเขตตัวเองไม่ได้ — ตอบ 404 เหมือนไม่มีใบนี้ ไม่บอกว่ามีอยู่
+  if (!canViewRequest(scope, request.requestDeptId)) {
     notFound();
   }
 
@@ -71,11 +77,7 @@ export default async function RequestOverviewPage({
 
   const canCreate = canCreateRequest(currentUser.role);
   const canEdit = canEditTests(currentUser.role);
-  const canAttach = canAttachToRequest(
-    currentUser.role,
-    currentUser.departmentId,
-    request.requestDeptId,
-  );
+  const canAttach = canAttachToRequest(scope, request.requestDeptId);
 
   return (
     <div className="flex flex-col gap-5 pb-10">

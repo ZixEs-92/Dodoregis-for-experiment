@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { guardPageUser } from "@/lib/guard";
-import { canEditTests, isDeptScoped } from "@/lib/roles";
+import { toScope } from "@/lib/auth";
+import { canEditTests, departmentFilter } from "@/lib/roles";
 import { isOverdue, isUrgent } from "@/lib/workflow";
 import { testTitle } from "@/lib/format";
 import { toDisplayDate } from "@/lib/date";
@@ -21,11 +22,12 @@ export default async function BoardPage({
   const user = await guardPageUser("/board");
   const canEdit = canEditTests(user.role);
 
-  // requester เห็นเฉพาะแผนกตัวเอง เหมือนหน้ารายการงาน
-  const deptScoped = isDeptScoped(user.role, user.departmentId);
+  // requester/หัวหน้าแผนก เห็นเฉพาะขอบเขตแผนกตัวเอง เหมือนหน้ารายการงาน
+  const scope = toScope(user);
+  const deptFilter = departmentFilter(scope);
   const where: Prisma.TestItemWhereInput = {
     status: { notIn: ["S10_CANCEL"] },
-    ...(deptScoped ? { request: { requestDeptId: user.departmentId! } } : {}),
+    ...(deptFilter ? { request: { requestDeptId: deptFilter } } : {}),
   };
 
   const items = await prisma.testItem.findMany({

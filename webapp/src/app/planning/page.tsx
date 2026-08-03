@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { guardPageAdmin } from "@/lib/guard";
+import { guardPagePlan } from "@/lib/guard";
 import { isUrgent } from "@/lib/workflow";
 import { testTitle } from "@/lib/format";
 import PlanningQueue, { QueueItem } from "@/components/PlanningQueue";
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "คิวรอวางแผน — Dodoregis" };
 
 export default async function PlanningPage() {
-  await guardPageAdmin("/planning");
+  await guardPagePlan("/planning");
 
   // งานที่ยังไม่มอบหมายและยังไม่จบ/ยกเลิก — เรียงใบเก่าสุดก่อน
   const [items, members] = await Promise.all([
@@ -51,8 +51,8 @@ export default async function PlanningPage() {
 
   return (
     <div className="flex flex-col gap-5 pb-10">
-      <Link href="/admin" className="text-[13px] text-muted hover:text-ink w-fit">
-        ← กลับไปหน้าผู้ดูแลระบบ
+      <Link href="/" className="text-[13px] text-muted hover:text-ink w-fit">
+        ← กลับไปหน้าหลัก
       </Link>
       <div>
         <h1 className="text-[22px] font-medium text-ink sm:text-[26px]">

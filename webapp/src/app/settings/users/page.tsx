@@ -23,7 +23,7 @@ export default async function UsersPage() {
 
   const [users, departments, members] = await Promise.all([
     prisma.user.findMany({
-      include: { department: true, member: true },
+      include: { department: true, member: true, headOfDepartments: true },
       orderBy: [{ active: "desc" }, { role: "asc" }, { username: "asc" }],
     }),
     prisma.department.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
@@ -38,6 +38,7 @@ export default async function UsersPage() {
     active: u.active,
     departmentName: u.department?.name ?? null,
     memberName: u.member?.name ?? null,
+    headDepartments: u.headOfDepartments.map((d) => ({ id: d.id, name: d.name })),
     lastLoginAt: fmtDateTime(u.lastLoginAt),
   }));
 

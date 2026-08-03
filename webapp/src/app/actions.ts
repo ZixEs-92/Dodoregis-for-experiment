@@ -17,9 +17,11 @@ import {
   ensureUser,
   ensureCreateRequest,
   ensureEditTests,
-  ensurePlanManage,
+  ensurePlanWork,
+  ensureManageSystem,
 } from "@/lib/guard";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, toScope } from "@/lib/auth";
+import { canEditTests, canViewRequest } from "@/lib/roles";
 import {
   RequestStatus,
   RunResult,
@@ -200,13 +202,28 @@ export async function createRequest(
   if (denied) return { ok: false, errors: [denied] };
   const user = (await getCurrentUser())!;
 
-  // requester ถูกล็อกให้ลงงานของแผนกตัวเองเสมอ (บังคับฝั่ง server ไม่เชื่อค่าจากฟอร์ม)
+  // requester ถูกล็อกให้ลงงานของแผนกตัวเองเสมอ, dept_head เลือกได้แต่ต้องเป็นแผนกที่ตัวเองคุม
+  // (บังคับฝั่ง server ทั้งคู่ ไม่เชื่อค่าจากฟอร์ม)
   const isRequester = user.role === "REQUESTER";
+  const isDeptHead = user.role === "DEPT_HEAD";
   if (isRequester && !user.departmentId) {
     return { ok: false, errors: ["บัญชีของคุณยังไม่ผูกกับแผนก — แจ้งผู้ดูแลระบบให้ตั้งค่าก่อน"] };
   }
-  const deptId = isRequester ? user.departmentId! : num(formData, "request_dept");
-  const canPlan = !isRequester;
+  const headedDeptIds = user.headOfDepartments.map((d) => d.id);
+  if (isDeptHead && headedDeptIds.length === 0) {
+    return { ok: false, errors: ["บัญชีของคุณยังไม่ได้กำหนดให้คุมแผนกใด — แจ้งผู้ดูแลระบบให้ตั้งค่าก่อน"] };
+  }
+  let deptId: number | null;
+  if (isRequester) {
+    deptId = user.departmentId!;
+  } else if (isDeptHead) {
+    const requestedDeptId = num(formData, "request_dept");
+    deptId = requestedDeptId && headedDeptIds.includes(requestedDeptId) ? requestedDeptId : null;
+  } else {
+    deptId = num(formData, "request_dept");
+  }
+  // ผู้ที่วางแผน/มอบหมายงานได้เท่านั้น ถึงจะลง owner+วันที่ตั้งแต่ตอนสร้างใบ
+  const canPlan = canEditTests(user.role);
 
   const parts = jsonField<PartInput>(formData, "parts_json")
     .map((p) => ({
@@ -350,11 +367,11 @@ export async function addItem(
   if (denied) return { ok: false, errors: [denied] };
   const user = (await getCurrentUser())!;
 
-  // requester เพิ่ม item ได้เฉพาะใบของแผนกตัวเอง
-  if (user.role === "REQUESTER") {
+  // requester/dept_head เพิ่ม item ได้เฉพาะใบในขอบเขตแผนกตัวเอง
+  if (user.role === "REQUESTER" || user.role === "DEPT_HEAD") {
     const req = await prisma.testRequest.findUnique({ where: { regisNo } });
-    if (!req || req.requestDeptId !== user.departmentId) {
-      return { ok: false, errors: ["เพิ่มรายการได้เฉพาะใบรีเควสของแผนกตัวเอง"] };
+    if (!req || !canViewRequest(toScope(user), req.requestDeptId)) {
+      return { ok: false, errors: ["เพิ่มรายการได้เฉพาะใบรีเควสในขอบเขตแผนกตัวเอง"] };
     }
   }
 
@@ -401,15 +418,15 @@ export async function addItem(
 
 // ── ชิ้นงาน/รุ่น Lamp ในใบรีเควส ─────────────────────────────
 
-/** ผู้ขอแก้ได้เฉพาะใบของแผนกตัวเอง */
+/** ผู้ขอ/หัวหน้าแผนกแก้ได้เฉพาะใบในขอบเขตแผนกตัวเอง */
 async function assertCanEditRequest(regisNo: string): Promise<string | null> {
   const denied = await ensureCreateRequest();
   if (denied) return denied;
   const user = (await getCurrentUser())!;
-  if (user.role === "REQUESTER") {
+  if (user.role === "REQUESTER" || user.role === "DEPT_HEAD") {
     const req = await prisma.testRequest.findUnique({ where: { regisNo } });
-    if (!req || req.requestDeptId !== user.departmentId) {
-      return "แก้ไขได้เฉพาะใบรีเควสของแผนกตัวเอง";
+    if (!req || !canViewRequest(toScope(user), req.requestDeptId)) {
+      return "แก้ไขได้เฉพาะใบรีเควสในขอบเขตแผนกตัวเอง";
     }
   }
   return null;
@@ -703,7 +720,7 @@ export async function planItem(
   _prev: ActionResult,
   formData: FormData
 ): Promise<ActionResult> {
-  const denied = await ensurePlanManage();
+  const denied = await ensurePlanWork();
   if (denied) return { ok: false, errors: [denied] };
   const planner = (await getCurrentUser())!;
 
@@ -766,7 +783,7 @@ export async function planItemsBulk(
   planStartRaw: string | null,
   planEndRaw: string | null
 ): Promise<ActionResult & { count?: number }> {
-  const denied = await ensurePlanManage();
+  const denied = await ensurePlanWork();
   if (denied) return { ok: false, errors: [denied] };
   if (itemCodes.length === 0) return { ok: false, errors: ["ยังไม่ได้เลือกรายการ"] };
 
@@ -1010,7 +1027,7 @@ export async function sendLineTest(
   _prev: LineTestState,
   formData: FormData
 ): Promise<LineTestState> {
-  const denied = await ensurePlanManage();
+  const denied = await ensureManageSystem();
   if (denied) return { ran: false, result: null, errors: [denied] };
   const message = str(formData, "message") ?? "🔔 ทดสอบแจ้งเตือนจาก Dodoregis";
   const token = str(formData, "token") ?? undefined; // override ชั่วคราว (ไม่บันทึก)
@@ -1028,7 +1045,7 @@ export async function addMaster(
   _prev: ActionResult,
   formData: FormData
 ): Promise<ActionResult> {
-  const denied = await ensurePlanManage();
+  const denied = await ensureManageSystem();
   if (denied) return { ok: false, errors: [denied] };
   const name = str(formData, "name");
   if (!name) return { ok: false, errors: ["กรุณากรอกชื่อ"] };
@@ -1054,7 +1071,7 @@ export async function addMaster(
 }
 
 export async function renameMaster(kind: MasterKind, id: number, formData: FormData) {
-  const denied = await ensurePlanManage();
+  const denied = await ensureManageSystem();
   if (denied) throw new Error(denied);
   const name = str(formData, "name");
   if (!name) return;
@@ -1078,7 +1095,7 @@ export async function renameMaster(kind: MasterKind, id: number, formData: FormD
 }
 
 export async function setDepartmentSla(id: number, formData: FormData) {
-  const denied = await ensurePlanManage();
+  const denied = await ensureManageSystem();
   if (denied) throw new Error(denied);
   const raw = str(formData, "sla_days");
   const days = raw ? Number(raw) : NaN;
@@ -1095,7 +1112,7 @@ export async function toggleMasterActive(
   id: number,
   active: boolean
 ) {
-  const denied = await ensurePlanManage();
+  const denied = await ensureManageSystem();
   if (denied) throw new Error(denied);
   if (kind === "department") {
     await prisma.department.update({ where: { id }, data: { active } });

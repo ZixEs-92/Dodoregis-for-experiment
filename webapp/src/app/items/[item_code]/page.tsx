@@ -16,6 +16,7 @@ import { leadTime, slaStatus, SLA_STATUS_LABEL, SLA_STATUS_COLOR } from "@/lib/t
 import { requestRollup, PHASE_LABEL, PHASE_COLOR } from "@/lib/rollup";
 import { testTitle, isHttpUrl } from "@/lib/format";
 import { guardPageUser } from "@/lib/guard";
+import { toScope } from "@/lib/auth";
 import { canAttachToRequest, canEditTests, canViewRequest } from "@/lib/roles";
 import CopyButton from "@/components/CopyButton";
 import Icon from "@/components/ui/Icon";
@@ -33,6 +34,10 @@ import {
   uploadAttachment,
   moveLocation,
 } from "@/app/actions";
+
+// บังคับ dynamic เสมอ — หน้านี้ผลลัพธ์ขึ้นกับ session ผู้ใช้ (canViewRequest/canEdit/canAttach)
+// ถ้าปล่อยให้ Next cache ผลตาม URL เฉย ๆ ผู้ใช้คนอื่นที่เปิด URL เดียวกันจะได้ผล 404/สิทธิ์ของคนแรกที่แคชไว้แทน
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params,
@@ -77,8 +82,9 @@ export default async function ItemDetailPage({
   });
 
   if (!item) notFound();
-  // ผู้ขอทดสอบเปิดงานของแผนกอื่นไม่ได้ — ตอบ 404 เหมือนไม่มีรายการนี้
-  if (!canViewRequest(currentUser.role, currentUser.departmentId, item.request.requestDeptId)) {
+  const scope = toScope(currentUser);
+  // ผู้ขอทดสอบ/หัวหน้าแผนกเปิดงานนอกขอบเขตตัวเองไม่ได้ — ตอบ 404 เหมือนไม่มีรายการนี้
+  if (!canViewRequest(scope, item.request.requestDeptId)) {
     notFound();
   }
 
@@ -102,12 +108,8 @@ export default async function ItemDetailPage({
 
   // สิทธิ์: viewer/requester เห็นอย่างเดียว, engineer ขึ้นไปแก้ได้
   const canEdit = canEditTests(currentUser.role);
-  // ผู้ขอทดสอบแนบไฟล์เพิ่มในงานของแผนกตัวเองได้ แต่ลบไม่ได้
-  const canAttach = canAttachToRequest(
-    currentUser.role,
-    currentUser.departmentId,
-    item.request.requestDeptId,
-  );
+  // ผู้ขอทดสอบ/หัวหน้าแผนกแนบไฟล์เพิ่มในงานของแผนกตัวเองได้ แต่ลบไม่ได้
+  const canAttach = canAttachToRequest(scope, item.request.requestDeptId);
 
   // เงื่อนไขที่ยังขาดสำหรับไปสถานะถัดไป — บอกผู้ใช้ก่อนกด ไม่ใช่หลังกด
   const curIdx = STATUS_ORDER.indexOf(item.status);

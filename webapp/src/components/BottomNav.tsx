@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logout } from "@/app/login/actions";
-import { ROLE_LABEL, canCreateRequest, canPlanAndManage } from "@/lib/roles";
+import { ROLE_LABEL, canCreateRequest, canManageSystem, canPlanWork } from "@/lib/roles";
 import Icon, { type IconName } from "@/components/ui/Icon";
 import type { UserRole } from "@/generated/prisma/client";
 
@@ -41,7 +41,11 @@ export default function BottomNav({
   const moreLinks: { href: string; label: string; icon: IconName }[] = [
     { href: "/board", label: "บอร์ดงาน", icon: "board" },
     { href: "/schedule", label: "ตารางงาน", icon: "calendar" },
-    ...(canPlanAndManage(user?.role)
+    // admin เข้า /planning ผ่าน "ผู้ดูแลระบบ" อยู่แล้ว — โชว์ "วางแผน" ตรงให้ lab_head เท่านั้น กันซ้ำ
+    ...(canPlanWork(user?.role) && !canManageSystem(user?.role)
+      ? ([{ href: "/planning", label: "วางแผน", icon: "clock" }] as const)
+      : []),
+    ...(canManageSystem(user?.role)
       ? ([{ href: "/admin", label: "ผู้ดูแลระบบ", icon: "settings" }] as const)
       : []),
   ];

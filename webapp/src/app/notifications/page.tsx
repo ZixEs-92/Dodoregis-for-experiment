@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { generateDueNotifications } from "@/lib/notifications";
 import { markNotificationRead, markAllNotificationsRead } from "@/app/actions";
 import { guardPageUser } from "@/lib/guard";
-import { canEditTests, canPlanAndManage, isDeptScoped } from "@/lib/roles";
+import { toScope } from "@/lib/auth";
+import { canEditTests, canManageSystem, departmentFilter } from "@/lib/roles";
 import { toDisplayDateTime } from "@/lib/date";
 import { NotificationLevel } from "@/generated/prisma/client";
 
@@ -29,12 +30,10 @@ export default async function NotificationsPage() {
   // ให้เฉพาะทีมแลปเป็นคนจุด — ผู้ขอทดสอบไม่ควรเขียนข้อมูลของทั้งแลป
   if (isTeam) await generateDueNotifications().catch(() => {});
 
-  // ผู้ขอทดสอบเห็นเฉพาะแจ้งเตือนของงานในแผนกตัวเอง
-  const deptScoped = isDeptScoped(user.role, user.departmentId);
+  // ผู้ขอทดสอบ/หัวหน้าแผนกเห็นเฉพาะแจ้งเตือนของงานในขอบเขตแผนกตัวเอง
+  const deptFilter = departmentFilter(toScope(user));
   const notifications = await prisma.notification.findMany({
-    where: deptScoped
-      ? { item: { request: { requestDeptId: user.departmentId! } } }
-      : {},
+    where: deptFilter ? { item: { request: { requestDeptId: deptFilter } } } : {},
     include: { item: true },
     orderBy: [{ readAt: "asc" }, { createdAt: "desc" }],
     take: 200,
@@ -51,7 +50,7 @@ export default async function NotificationsPage() {
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          {canPlanAndManage(user.role) && (
+          {canManageSystem(user.role) && (
             <Link href="/settings/line" className="btn-secondary btn-sm">⚙️ ตั้งค่า LINE</Link>
           )}
           {unread > 0 && isTeam && (
