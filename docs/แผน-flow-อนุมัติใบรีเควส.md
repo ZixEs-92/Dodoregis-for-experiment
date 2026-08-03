@@ -20,19 +20,26 @@
 
 **นี่คือช่องโหว่ที่ต้องปิดพร้อมกับ flow อนุมัติ ไม่ใช่ปิดทีหลัง**
 
-### 🔴 F2 — `isDeptScoped()` ผูกกับ role `REQUESTER` ตรง ๆ
+### 🔴 F2 — ขอบเขตการมองเห็นเป็น "แผนกเดียว" แต่ต้องกลายเป็น "ชุดของแผนก"
 
 ```ts
 // webapp/src/lib/roles.ts (ปัจจุบัน)
 export function isDeptScoped(role, userDeptId) {
-  return role === "REQUESTER" && userDeptId != null;
+  return role === "REQUESTER" && userDeptId != null;   // ← เทียบได้แค่ค่าเดียว
 }
 ```
 
-พอเพิ่ม role `DEPT_HEAD` เข้ามา เงื่อนไขนี้จะเป็น false ทันที →
-**หัวหน้าแผนกจะเห็นงานของทุกแผนกทั้งระบบ** ซึ่งขัดกับที่คุณสั่งไว้ว่า "ดูงานของแผนกตัวเองได้"
+ปัญหา 2 ชั้น:
+1. ผูกกับ `REQUESTER` ตรง ๆ → พอเพิ่ม `DEPT_HEAD` เงื่อนไขเป็น false ทันที
+   **หัวหน้าแผนกจะเห็นงานทุกแผนกทั้งระบบ** ตรงข้ามกับที่ต้องการ
+2. **ผู้ใช้ยืนยันว่าหัวหน้า 1 คนอาจคุมหลายแผนก** (บางคนคุมแผนกเดียว บางคนคุม 2–3)
+   → เทียบ `userDeptId === requestDeptId` ค่าเดียวไม่พออีกต่อไป
+
+**ต้องเปลี่ยนแนวคิดเป็น "ชุดแผนกที่ผู้ใช้คนนี้เห็นได้"** — ตัวกรองทุกจุดจาก
+`requestDeptId: X` เป็น `requestDeptId: { in: [...] }`
 
 ใช้อยู่ 5 จุด: `layout.tsx` · `requests/page.tsx` · `board/page.tsx` · `notifications/page.tsx` · `api/search/route.ts`
+(บวก `canViewRequest` ที่ `requests/[regis]` และ `items/[code]` ใช้)
 
 ### 🟠 F3 — `canEditTests()` ถูกใช้ปน 2 ความหมาย
 
@@ -92,18 +99,44 @@ enum UserRole {
 > พอผู้ใช้ยืนยันว่า **จะสร้างบัญชีแยกสำหรับหัวหน้าโดยเฉพาะ** ปัญหานั้นหายไป
 > และ role ตรงไปตรงมากว่ามาก (เห็นในหน้าจัดการผู้ใช้ทันทีว่าใครเป็นอะไร)
 
-**`DEPT_HEAD` ต้องผูก `departmentId`** (บังคับเหมือน REQUESTER) เพราะเขาอนุมัติ/เห็นเฉพาะแผนกตัวเอง
-**`LAB_HEAD` ไม่ต้องผูกแผนก** — ดูทั้งแลป
+### 2.1.1 หัวหน้าแผนก ↔ แผนก เป็นความสัมพันธ์ **หลาย-ต่อ-หลาย**
 
-ตั้งได้หลายคนต่อ role/แผนก **ใครเซ็นก่อนก็ผ่าน** (กันงานค้างตอนหัวหน้าลา)
+ผู้ใช้ยืนยัน 2 ข้อ:
+- **1 แผนกตั้งหัวหน้าได้หลายคน** — ใครเซ็นก่อนก็ผ่าน (กันงานค้างตอนหัวหน้าลา)
+- **1 คนคุมได้หลายแผนก** — บางคนคุมแผนกเดียว บางคนคุม QC + QA
+
+→ ใช้ `departmentId` ช่องเดียวไม่ได้ ต้องเพิ่มความสัมพันธ์ใหม่:
+
+```prisma
+model User {
+  departmentId Int? @map("department_id")   // ← ของเดิม: แผนกต้นสังกัด (ใช้กับ REQUESTER)
+  headOfDepartments Department[] @relation("DepartmentHeads")   // ใหม่
+}
+
+model Department {
+  heads User[] @relation("DepartmentHeads")  // ใหม่ — Prisma สร้างตารางเชื่อม _DepartmentHeads ให้เอง
+}
+```
+
+> ใช้ implicit m-n เหมือนที่โปรเจคนี้ใช้อยู่แล้วกับ `_RequestPartToTestItem` — ไม่ต้องประกาศตารางเชื่อมเอง
+
+**`departmentId` เดิมยังอยู่และยังจำเป็น** — เป็น "แผนกต้นสังกัด" ของ REQUESTER (ล็อกฝั่ง server ตอนลงงาน)
+ส่วนขอบเขตของ `DEPT_HEAD` มาจาก `headOfDepartments` ไม่ใช่ `departmentId`
+
+**ผลที่ตามมา — ต้องทำให้ครบทั้ง 3 ข้อ:**
+1. `getCurrentUser()` ใน `webapp/src/lib/auth.ts` ต้อง `include: { headOfDepartments: true }`
+2. ทุก query ที่กรองแผนกเปลี่ยนจาก `requestDeptId: X` → `requestDeptId: { in: ids }`
+3. ตอน `DEPT_HEAD` ลงงานใหม่ ช่องแผนกเป็น **dropdown เฉพาะแผนกที่ตัวเองคุม** (ไม่ล็อกค่าเดียว ไม่เปิดทุกแผนก)
+
+**`LAB_HEAD` ไม่ต้องผูกแผนกใด ๆ** — ดูทั้งแลป
 
 ### 2.2 ตารางสิทธิ์ (แหล่งความจริงเดียว — `webapp/src/lib/roles.ts`)
 
 | ความสามารถ | ADMIN | LAB_HEAD | ENGINEER | DEPT_HEAD | REQUESTER | VIEWER |
 |---|:--:|:--:|:--:|:--:|:--:|:--:|
-| เห็นงานทุกแผนก | ✅ | ✅ | ✅ | ❌ แผนกตัวเอง | ❌ แผนกตัวเอง | ✅ |
-| ลงงานใหม่ | ✅ | ✅ | ✅ | ✅ แผนกตัวเอง | ✅ แผนกตัวเอง | ❌ |
-| **อนุมัติชั้น 1 (แผนก)** | ✅ แทนได้ | ❌ | ❌ | ✅ แผนกตัวเอง | ❌ | ❌ |
+| เห็นงานทุกแผนก | ✅ | ✅ | ✅ | ❌ เฉพาะแผนกที่คุม | ❌ แผนกตัวเอง | ✅ |
+| ลงงานใหม่ | ✅ | ✅ | ✅ | ✅ เลือกจากแผนกที่คุม | ✅ แผนกตัวเอง | ❌ |
+| **อนุมัติชั้น 1 (แผนก)** | ✅ แทนได้ | ❌ | ❌ | ✅ เฉพาะแผนกที่คุม | ❌ | ❌ |
 | **อนุมัติชั้น 2 (แลป)** | ✅ แทนได้ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | แก้สถานะ/ผลเทส/รีพอร์ท | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
 | วางแผน/มอบหมายงาน | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
@@ -119,11 +152,34 @@ enum UserRole {
 ```ts
 // webapp/src/lib/roles.ts — ปลอดภัยสำหรับ import ฝั่ง client (type-only import เท่านั้น)
 
-const ALL_DEPT_ROLES: UserRole[] = ["DEPT_HEAD", "REQUESTER"];
+/** ข้อมูลขั้นต่ำที่ต้องใช้ตัดสินสิทธิ์ — ให้ client component ส่งมาได้โดยไม่ต้องลาก User ทั้งก้อน */
+export type Scope = {
+  role: UserRole;
+  departmentId: number | null;
+  headOfDepartmentIds: number[];   // ว่างถ้าไม่ใช่ DEPT_HEAD
+};
 
-/** เห็นได้เฉพาะแผนกตัวเอง — แก้ F2: ต้องรวม DEPT_HEAD ไม่ใช่แค่ REQUESTER */
-export function isDeptScoped(role, userDeptId): boolean {
-  return role != null && ALL_DEPT_ROLES.includes(role) && userDeptId != null;
+/**
+ * แผนกที่ผู้ใช้คนนี้เห็นได้ — **null = เห็นทุกแผนก**
+ * แก้ F2 ทั้ง 2 ชั้น: รวม DEPT_HEAD ด้วย และคืนเป็น "ชุด" เพราะ 1 คนคุมได้หลายแผนก
+ */
+export function visibleDepartmentIds(s: Scope): number[] | null {
+  if (canViewLabWide(s.role) || s.role === "VIEWER") return null;
+  if (s.role === "DEPT_HEAD") return s.headOfDepartmentIds;
+  if (s.role === "REQUESTER") return s.departmentId != null ? [s.departmentId] : [];
+  return [];
+}
+
+/** ใช้ประกอบ where ของ Prisma: undefined = ไม่ต้องกรอง */
+export function departmentFilter(s: Scope) {
+  const ids = visibleDepartmentIds(s);
+  return ids === null ? undefined : { in: ids };
+}
+
+/** เปิดดูใบนี้ได้ไหม — ใช้กับหน้ารายละเอียดที่เข้าตรงด้วย URL/QR */
+export function canViewRequest(s: Scope, requestDeptId: number): boolean {
+  const ids = visibleDepartmentIds(s);
+  return ids === null || ids.includes(requestDeptId);
 }
 
 /** แก้สถานะ/ลงผลเทส/รีพอร์ท — แก้ F3: ความหมายแคบลง ไม่รวม LAB_HEAD */
@@ -150,10 +206,10 @@ export function canCreateRequest(role): boolean {
   return hasRole(role, "ADMIN", "LAB_HEAD", "ENGINEER", "DEPT_HEAD", "REQUESTER");
 }
 
-/** อนุมัติชั้น 1 — ต้องเป็นแผนกเดียวกับใบ (admin ข้ามได้ = override) */
-export function canApproveDept(role, userDeptId, requestDeptId): boolean {
-  if (role === "ADMIN") return true;
-  return role === "DEPT_HEAD" && userDeptId != null && userDeptId === requestDeptId;
+/** อนุมัติชั้น 1 — ต้องคุมแผนกของใบนั้นอยู่ (admin ข้ามได้ = override) */
+export function canApproveDept(s: Scope, requestDeptId: number): boolean {
+  if (s.role === "ADMIN") return true;
+  return s.role === "DEPT_HEAD" && s.headOfDepartmentIds.includes(requestDeptId);
 }
 
 /** อนุมัติชั้น 2 */
@@ -213,7 +269,7 @@ requester / dept_head ลงใบรีเควส
 |---|---|---|
 | REQUESTER | ชั้นแผนกเปิด + แผนกมีหัวหน้าอย่างน้อย 1 คน | `PENDING_DEPT` |
 | REQUESTER | ชั้นแผนกปิด **หรือ** แผนกยังไม่มีหัวหน้า | `PENDING_LAB` |
-| DEPT_HEAD | (ไม่ต้องเซ็นอนุมัติตัวเอง) | `PENDING_LAB` |
+| DEPT_HEAD | ลงใบให้แผนกที่**ตัวเองคุม** → ไม่ต้องเซ็นอนุมัติตัวเอง | `PENDING_LAB` |
 | ADMIN / LAB_HEAD / ENGINEER | — | `APPROVED` + log `AUTO_APPROVE` |
 
 **การเปลี่ยนสถานะ**
@@ -313,14 +369,20 @@ model AppSetting {
 **key ที่ใช้รอบนี้:** `approval.deptStage` = `"on"` / `"off"` (ค่าเริ่มต้นถ้าไม่มีแถว = `"on"`)
 ปิดเมื่อไหร่ → ใบใหม่ข้ามไป `PENDING_LAB` · ใบที่ค้าง `PENDING_DEPT` อยู่ให้เลื่อนขึ้นชั้น 2 อัตโนมัติ
 
-**`User` เพิ่มความสัมพันธ์ย้อนกลับ:**
+**`User` / `Department` เพิ่มความสัมพันธ์:**
 ```prisma
 model User {
   // ...ของเดิม...
+  headOfDepartments    Department[]  @relation("DepartmentHeads")  // ดูข้อ 2.1.1
   deptApprovedRequests TestRequest[] @relation("DeptApprover")
   labApprovedRequests  TestRequest[] @relation("LabApprover")
   rejectedRequests     TestRequest[] @relation("Rejecter")
   approvalLogs         ApprovalLog[]
+}
+
+model Department {
+  // ...ของเดิม...
+  heads User[] @relation("DepartmentHeads")
 }
 ```
 
@@ -340,7 +402,7 @@ model User {
 | `/board` | ✅ | ✅ | ✅ | ✅ แผนก | ✅ แผนก | ✅ | ❌ |
 | `/schedule` | ✅ | ✅ | ✅ | ✅ แผนก | ✅ แผนก | ✅ | ❌ |
 | `/notifications` | ✅ | ✅ | ✅ | ✅ แผนก | ✅ แผนก | ✅ | ❌ |
-| **`/approvals`** 🆕 | ✅ | ✅ | ❌ | ✅ แผนก | ❌ | ❌ | ❌ |
+| **`/approvals`** 🆕 | ✅ | ✅ | ❌ | ✅ แผนกที่คุม | ❌ | ❌ | ❌ |
 | `/analytics` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | `/reports` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | `/labels` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
@@ -351,7 +413,8 @@ model User {
 | `/api/export` | ✅ | ✅ | ✅ | ❌ 403 | ❌ 403 | ❌ 403 | ❌ 401 |
 | `/api/attachments/[id]` | ✅ | ✅ | ✅ | ✅ แผนก | ✅ แผนก | ✅ | ❌ 401 |
 
-"แผนก" = เห็นเฉพาะงานของแผนกตัวเอง · ใบของแผนกอื่นตอบ 404 (ไม่บอกว่ามีอยู่)
+"แผนก" = เห็นเฉพาะงานในแผนกที่ผูกไว้ (REQUESTER = แผนกต้นสังกัด · DEPT_HEAD = ทุกแผนกที่คุม)
+· ใบนอกขอบเขตตอบ 404 ไม่บอกว่ามีอยู่
 
 ---
 
@@ -362,7 +425,8 @@ model User {
 1. **สำรองข้อมูลก่อน:** `cd webapp && npm run backup`
 2. **หยุด dev server ก่อน migrate** (มัน lock `dev.db`)
 3. `webapp/prisma/schema.prisma` — เพิ่ม `LAB_HEAD` + `DEPT_HEAD` ใน enum `UserRole`,
-   enum `ApprovalStatus`, ฟิลด์ใน `TestRequest`, model `ApprovalLog`, model `AppSetting`, relation ย้อนกลับใน `User`
+   enum `ApprovalStatus`, ฟิลด์ใน `TestRequest`, model `ApprovalLog`, model `AppSetting`,
+   relation ย้อนกลับใน `User`, และ **m-n `User.headOfDepartments` ↔ `Department.heads`** (ข้อ 2.1.1)
 4. สร้าง migration (Prisma 7 ที่นี่รัน `migrate dev` ไม่ได้ — non-interactive):
    ```bash
    TS=$(date +%Y%m%d%H%M%S); DIR="prisma/migrations/${TS}_approval_flow"; mkdir -p "$DIR"
@@ -374,48 +438,57 @@ model User {
 
 ### เฟส 4b — สิทธิ์ (แก้ F2 + F3 · ยังไม่มี flow อนุมัติ)
 
-6. `webapp/src/lib/roles.ts` — เขียนฟังก์ชันตามส่วนที่ 2.3 · เพิ่ม `ROLE_LABEL` ของ 2 role ใหม่
+6. `webapp/src/lib/auth.ts` — `getCurrentUser()` เพิ่ม `include: { headOfDepartments: true }`
+   (ทุกอย่างหลังจากนี้พึ่งค่านี้ · มันถูก `cache()` ต่อ 1 request อยู่แล้ว ไม่เพิ่มภาระ query)
+7. `webapp/src/lib/roles.ts` — เขียนฟังก์ชันตามส่วนที่ 2.3 ทั้งชุด · เพิ่ม `ROLE_LABEL` ของ 2 role ใหม่
    (`LAB_HEAD` = "หัวหน้าแผนกทดสอบ", `DEPT_HEAD` = "หัวหน้าแผนก")
-7. ไล่แก้ทุกจุดที่เรียก `canPlanAndManage` (7 จุด) ให้เป็น `canPlanWork` หรือ `canManageSystem` ตามความหมาย
-8. ไล่แก้ `canEditTests` 8 จุด — จุดที่แปลว่า "ทีมแลป เห็นได้ทุกแผนก" เปลี่ยนเป็น `canViewLabWide`
-   (`analytics` · `reports` · `labels` · `api/export` · `guard.ts: guardPageTeam`)
-9. `webapp/src/lib/guard.ts` — `guardPageTeam` ใช้ `canViewLabWide`, เพิ่ม `guardPagePlan` (canPlanWork), `guardPageApprove`
-10. `webapp/src/app/settings/users/` — รองรับ 2 role ใหม่ (DEPT_HEAD บังคับเลือกแผนก เหมือน REQUESTER)
-11. **ตรวจก่อนไปต่อ:** สร้างผู้ใช้ทดสอบทั้ง 6 role แล้วไล่เปิดทุก route ตามตารางส่วนที่ 5
+   **ลบ `isDeptScoped` ทิ้ง** แล้วแทนด้วย `visibleDepartmentIds` / `departmentFilter` / `canViewRequest`
+8. **ไล่เปลี่ยนตัวกรองแผนกทั้ง 5 จุดจาก "ค่าเดียว" เป็น "ชุด"** — `requestDeptId: X` → `requestDeptId: { in: ids }`
+   (`layout.tsx` ที่นับ unread · `requests/page.tsx` · `board/page.tsx` · `notifications/page.tsx` · `api/search/route.ts`)
+   `getUnreadCount()` ใน `lib/notifications.ts` ต้องรับ **array** แทนเลขเดียว
+9. ไล่แก้ทุกจุดที่เรียก `canPlanAndManage` (7 จุด) ให้เป็น `canPlanWork` หรือ `canManageSystem` ตามความหมาย
+10. ไล่แก้ `canEditTests` 8 จุด — จุดที่แปลว่า "ทีมแลป เห็นได้ทุกแผนก" เปลี่ยนเป็น `canViewLabWide`
+    (`analytics` · `reports` · `labels` · `api/export` · `guard.ts: guardPageTeam`)
+11. `webapp/src/lib/guard.ts` — `guardPageTeam` ใช้ `canViewLabWide`, เพิ่ม `guardPagePlan` (canPlanWork), `guardPageApprove`
+12. `webapp/src/app/settings/users/` — รองรับ 2 role ใหม่ · **DEPT_HEAD เลือกแผนกที่คุมได้หลายแผนก (checkbox/multi-select)**
+    ไม่ใช่ dropdown ค่าเดียว · LAB_HEAD ไม่ต้องเลือกแผนก
+13. `webapp/src/components/NewRequestForm.tsx` + `createRequest` — DEPT_HEAD เลือกแผนกได้เฉพาะแผนกที่ตัวเองคุม
+    **บังคับซ้ำฝั่ง server** (เหมือนที่ REQUESTER ถูกล็อกแผนกอยู่แล้ว) ห้ามเชื่อค่าจากฟอร์ม
+14. **ตรวจก่อนไปต่อ:** สร้างผู้ใช้ทดสอบทั้ง 6 role (รวม DEPT_HEAD ที่คุม 2 แผนก) แล้วไล่เปิดทุก route ตามตารางส่วนที่ 5
 
 ### เฟส 4c — flow อนุมัติ (หัวใจ)
 
-12. `webapp/src/lib/approval.ts` (ไฟล์ใหม่) — logic ล้วน ไม่แตะ DB:
+15. `webapp/src/lib/approval.ts` (ไฟล์ใหม่) — logic ล้วน ไม่แตะ DB:
     - `initialApprovalStatus({ creatorRole, deptStageOn, deptHasHead })`
     - `nextStatusOnApprove(current)` / `stageOf(current)`
     - `canActOn(status, user, requestDeptId)` → `{ canApprove, canReject, canResubmit, canEdit }`
     - `APPROVAL_LABEL` / `APPROVAL_COLOR` (ต้อง client-safe เหมือน `workflow.ts`)
-13. `webapp/src/app/actions.ts`:
+16. `webapp/src/app/actions.ts`:
     - `createRequest` — กำหนด `approvalStatus` เริ่มต้น + เขียน `ApprovalLog` (`SUBMIT` หรือ `AUTO_APPROVE`)
     - **`assertCanEditRequest` — เพิ่มเงื่อนไขสถานะตามข้อ 3.3.2 (ปิด F1)**
     - `changeItemStatus` — บล็อกถ้าใบยังไม่ `APPROVED` (ข้อความบอกว่ารออนุมัติจากใคร)
     - `markNotificationRead` / `markAllNotificationsRead` — จำกัดตามแผนก (ปิด F4)
     - **ใหม่:** `approveRequest(regisNo)` · `rejectRequest(regisNo, formData)` (บังคับเหตุผล) · `resubmitRequest(regisNo)`
       ทุกตัวต้อง: เช็คสิทธิ์ฝั่ง server → เช็คว่าสถานะปัจจุบันทำได้จริง → อัปเดต → เขียน `ApprovalLog` → `revalidatePath`
-14. `webapp/src/app/approvals/page.tsx` (ใหม่) — คิวใบที่ *ตัวเองต้องเซ็น* เรียงค้างนานสุดขึ้นก่อน
+17. `webapp/src/app/approvals/page.tsx` (ใหม่) — คิวใบที่ *ตัวเองต้องเซ็น* เรียงค้างนานสุดขึ้นก่อน
     + อนุมัติ/ตีกลับได้จากในลิสต์ + แสดง "ค้างมา N วัน"
-15. `webapp/src/components/ApprovalPanel.tsx` (ใหม่) — แถบบนหน้าใบ: สถานะปัจจุบัน · ใครเซ็นแล้ว · เหตุผลที่ตีกลับ · ปุ่มตามสิทธิ์ · ไทม์ไลน์จาก `ApprovalLog`
-16. `webapp/src/app/requests/[regis_no]/page.tsx` — ใส่ `ApprovalPanel` ไว้บนสุด + ซ่อนฟอร์มแก้ไขตามสถานะ
+18. `webapp/src/components/ApprovalPanel.tsx` (ใหม่) — แถบบนหน้าใบ: สถานะปัจจุบัน · ใครเซ็นแล้ว · เหตุผลที่ตีกลับ · ปุ่มตามสิทธิ์ · ไทม์ไลน์จาก `ApprovalLog`
+19. `webapp/src/app/requests/[regis_no]/page.tsx` — ใส่ `ApprovalPanel` ไว้บนสุด + ซ่อนฟอร์มแก้ไขตามสถานะ
 
 ### เฟส 4d — ทำให้ภาพไม่สับสน
 
-17. `webapp/src/app/page.tsx` + `webapp/src/components/home/` — **กล่อง "รออนุมัติ" แยกต่างหาก**
+20. `webapp/src/app/page.tsx` + `webapp/src/components/home/` — **กล่อง "รออนุมัติ" แยกต่างหาก**
     (ไม่ปนกับการ์ดงานปกติตามที่ผู้ใช้ขอ) · requester เห็นใบตัวเองที่ค้าง · แลปเห็นใบที่ยังไม่ถึงมือ · ผู้อนุมัติเห็นตัวเลขที่ต้องเซ็น
-18. `webapp/src/app/planning/page.tsx` — กรอง `approvalStatus: "APPROVED"`
-19. `webapp/src/app/board/page.tsx` — กรองใบที่ยังไม่อนุมัติออก
-20. `webapp/src/app/requests/page.tsx` — เพิ่มตัวกรองสถานะอนุมัติ + ป้ายสีบนแถว
-21. `NavBar` / `BottomNav` / `CommandPalette` — เมนู "รออนุมัติ" + ตัวเลขค้าง (เฉพาะคนที่เซ็นได้)
-22. `webapp/src/app/settings/approvals/page.tsx` (ใหม่) — สวิตช์เปิด/ปิดชั้นหัวหน้าแผนก + รายชื่อผู้อนุมัติทั้งหมด
+21. `webapp/src/app/planning/page.tsx` — กรอง `approvalStatus: "APPROVED"`
+22. `webapp/src/app/board/page.tsx` — กรองใบที่ยังไม่อนุมัติออก
+23. `webapp/src/app/requests/page.tsx` — เพิ่มตัวกรองสถานะอนุมัติ + ป้ายสีบนแถว
+24. `NavBar` / `BottomNav` / `CommandPalette` — เมนู "รออนุมัติ" + ตัวเลขค้าง (เฉพาะคนที่เซ็นได้)
+25. `webapp/src/app/settings/approvals/page.tsx` (ใหม่) — สวิตช์เปิด/ปิดชั้นหัวหน้าแผนก + รายชื่อผู้อนุมัติทั้งหมด
     + **เตือนถ้าแผนกไหนยังไม่มีหัวหน้า**
 
 ### เฟส 4e — แจ้งเตือน
 
-23. `webapp/src/lib/notifications.ts` — เพิ่ม 5 เหตุการณ์:
+26. `webapp/src/lib/notifications.ts` — เพิ่ม 5 เหตุการณ์:
 
 | เหตุการณ์ | เตือนใคร |
 |---|---|
@@ -437,6 +510,9 @@ model User {
 - [ ] `npx tsc --noEmit` และ `npm run lint` ผ่าน
 - [ ] `npm run build` ผ่าน
 - [ ] ผู้ใช้ครบ 6 role เปิดทุก route ตามตารางส่วนที่ 5 ได้ผลตรง (รวม 404 ของแผนกอื่น)
+- [ ] **DEPT_HEAD ที่คุม 2 แผนก** เห็นงานของทั้ง 2 แผนก และอนุมัติได้ทั้ง 2 — แต่แผนกที่ 3 ต้องมองไม่เห็นและกดอนุมัติไม่ได้
+- [ ] **DEPT_HEAD ที่คุมแผนกเดียว** ยิง URL ตรงเข้าใบของแผนกอื่น → 404 · ยิง action อนุมัติตรง → ถูกปฏิเสธฝั่ง server
+- [ ] แผนกที่มีหัวหน้า 2 คน — คนใดคนหนึ่งเซ็นแล้วใบเดินหน้าทันที ไม่ต้องรอครบ
 - [ ] requester ลงใบใหม่ → ขึ้น `PENDING_DEPT` และ **ไม่โผล่ใน `/planning` `/board`**
 - [ ] **หัวหน้าแผนกอนุมัติ → ผู้ขอเพิ่มรายการทดสอบไม่ได้แล้ว** (นี่คือข้อพิสูจน์ว่า F1 ปิดจริง)
 - [ ] หัวหน้าแลปอนุมัติ → ใบเข้า `/planning`
