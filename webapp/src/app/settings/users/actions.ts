@@ -82,23 +82,52 @@ export async function createUserAccount(
   return { ok: true, errors: [], saved: true };
 }
 
-/** admin แก้ชุดแผนกที่ dept_head คนนี้คุม (แทนที่ทั้งชุด) */
-export async function setUserHeadDepartments(
+/** admin แก้ไขบัญชีที่มีอยู่ — ชื่อที่แสดง/role/แผนก/ทีม/แผนกที่คุม (ไม่แตะ username/รหัสผ่าน) */
+export async function updateUserAccount(
   userId: number,
-  departmentIds: number[],
+  _prev: UserActionResult,
+  formData: FormData,
 ): Promise<UserActionResult> {
   const denied = await ensureManageSystem();
   if (denied) return { ok: false, errors: [denied] };
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) return { ok: false, errors: ["ไม่พบผู้ใช้นี้"] };
-  if (user.role !== "DEPT_HEAD") {
-    return { ok: false, errors: ["แก้แผนกที่คุมได้เฉพาะบัญชีบทบาทหัวหน้าแผนก"] };
+
+  const displayName = str(formData, "display_name");
+  const roleRaw = (str(formData, "role") ?? "").toUpperCase();
+
+  const errors: string[] = [];
+  if (!displayName) errors.push("กรุณากรอกชื่อที่แสดง");
+  if (!VALID_ROLES.includes(roleRaw as UserRole)) errors.push("role ไม่ถูกต้อง");
+  const role = roleRaw as UserRole;
+
+  // กันเปลี่ยน role ตัวเองจนหลุดสิทธิ์ที่ใช้อยู่ (เช่น admin คนเดียวเปลี่ยนตัวเองพลาด) — ให้ admin คนอื่นแก้แทน
+  const me = await getCurrentUser();
+  if (me && me.id === userId && role !== user.role) {
+    errors.push("เปลี่ยน role ของบัญชีตัวเองไม่ได้ — ให้ผู้ดูแลระบบอีกคนแก้ให้");
   }
+
+  const departmentId = num(formData, "department");
+  const memberId = num(formData, "member");
+  const headDeptIds = ids(formData, "department_ids");
+  if (role === "REQUESTER" && !departmentId) {
+    errors.push("ผู้ขอทดสอบต้องเลือกแผนก (เห็นเฉพาะงานแผนกตัวเอง)");
+  }
+  if (role === "DEPT_HEAD" && headDeptIds.length === 0) {
+    errors.push("หัวหน้าแผนกต้องเลือกอย่างน้อย 1 แผนกที่คุม");
+  }
+  if (errors.length > 0) return { ok: false, errors };
 
   await prisma.user.update({
     where: { id: userId },
-    data: { headOfDepartments: { set: departmentIds.map((id) => ({ id })) } },
+    data: {
+      displayName: displayName!,
+      role,
+      departmentId: role === "REQUESTER" ? departmentId : null,
+      memberId: role === "ENGINEER" || role === "LAB_HEAD" ? memberId : null,
+      headOfDepartments: { set: role === "DEPT_HEAD" ? headDeptIds.map((id) => ({ id })) : [] },
+    },
   });
 
   revalidatePath("/settings/users");

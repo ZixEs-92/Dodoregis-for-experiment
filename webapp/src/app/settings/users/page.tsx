@@ -36,7 +36,9 @@ export default async function UsersPage() {
     displayName: u.displayName,
     role: u.role,
     active: u.active,
+    departmentId: u.departmentId,
     departmentName: u.department?.name ?? null,
+    memberId: u.memberId,
     memberName: u.member?.name ?? null,
     headDepartments: u.headOfDepartments.map((d) => ({ id: d.id, name: d.name })),
     lastLoginAt: fmtDateTime(u.lastLoginAt),
@@ -50,7 +52,7 @@ export default async function UsersPage() {
       <div>
         <h1 className="text-[22px] font-medium text-ink sm:text-[26px]">จัดการผู้ใช้</h1>
         <p className="text-[14px] text-muted mt-0.5">
-          สร้างบัญชี / ตั้งรหัสใหม่ / เปิด-ปิดการใช้งาน — ทุกคนต้องมีบัญชีจึงจะเข้าดูข้อมูลได้
+          สร้างบัญชี / แก้ไขข้อมูล / ตั้งรหัสใหม่ / เปิด-ปิดการใช้งาน — ทุกคนต้องมีบัญชีจึงจะเข้าดูข้อมูลได้
           (รวมถึงคนที่สแกน QR หน้างาน)
         </p>
       </div>
