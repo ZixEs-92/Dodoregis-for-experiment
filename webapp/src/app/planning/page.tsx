@@ -36,7 +36,7 @@ export default async function PlanningPage() {
 
   const rows: QueueItem[] = items.map((it) => ({
     itemCode: it.itemCode,
-    partName: it.partName,
+    partName: it.model,
     partNo: it.partNo,
     testTitle: testTitle(it.testName, it.testDetail),
     testDetail: it.testDetail,

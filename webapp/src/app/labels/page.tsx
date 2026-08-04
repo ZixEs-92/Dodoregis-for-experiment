@@ -32,7 +32,7 @@ export default async function LabelsPage({
     labels = await Promise.all(
       ordered.map(async (req) => ({
         code: req.regisNo,
-        part: req.items[0]?.partName ?? `${req.regisNo}`,
+        part: req.items[0]?.model ?? `${req.regisNo}`,
         qr: await generateQrDataUrl(`/requests/${req.regisNo}`, 160),
       }))
     );
@@ -45,7 +45,7 @@ export default async function LabelsPage({
     labels = await Promise.all(
       ordered.map(async (it) => ({
         code: it.itemCode,
-        part: it.partName,
+        part: it.model,
         qr: await generateQrDataUrl(`/items/${it.itemCode}`, 160),
       }))
     );

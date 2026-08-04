@@ -18,17 +18,17 @@ async function main() {
   let linked = 0;
   for (const it of items) {
     if (it.parts.length > 0) continue; // ผูกไว้แล้ว
-    const name = it.partName.trim();
-    if (!name) continue;
+    const model = it.model.trim();
+    if (!model) continue;
 
-    // ใช้ชิ้นงานเดิมของใบถ้าชื่อ+part no. ตรงกัน ไม่งั้นสร้างใหม่
+    // ใช้ชิ้นงานเดิมของใบถ้ารุ่น+part no. ตรงกัน ไม่งั้นสร้างใหม่
     let part = await prisma.requestPart.findFirst({
-      where: { regisNo: it.regisNo, name, partNo: it.partNo ?? null },
+      where: { regisNo: it.regisNo, model, partNo: it.partNo ?? null },
     });
     if (!part) {
       const count = await prisma.requestPart.count({ where: { regisNo: it.regisNo } });
       part = await prisma.requestPart.create({
-        data: { regisNo: it.regisNo, name, partNo: it.partNo, qty: it.qty, sortOrder: count },
+        data: { regisNo: it.regisNo, model, partName: it.partName, partNo: it.partNo, qty: it.qty, sortOrder: count },
       });
       created++;
     }
@@ -41,10 +41,10 @@ async function main() {
 
   console.log(`สร้างชิ้นงาน ${created} รายการ · ผูกเข้า item ${linked} รายการ`);
   const summary = await prisma.testRequest.findMany({
-    select: { regisNo: true, parts: { select: { name: true, partNo: true } } },
+    select: { regisNo: true, parts: { select: { model: true, partNo: true } } },
   });
   for (const r of summary) {
-    console.log(`  ${r.regisNo}: ${r.parts.map((p) => p.name + (p.partNo ? ` (${p.partNo})` : "")).join(" · ") || "—"}`);
+    console.log(`  ${r.regisNo}: ${r.parts.map((p) => p.model + (p.partNo ? ` (${p.partNo})` : "")).join(" · ") || "—"}`);
   }
 }
 

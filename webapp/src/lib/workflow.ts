@@ -108,6 +108,8 @@ export type ItemForValidation = {
   finishedPartLocationId: number | null;
   rawDataLocation: string | null;
   reports: { sentDate: Date | null; reportUrl: string | null; sentTo: string | null }[];
+  /** มาจาก TestRequest.reportRequired — ถ้า false ข้ามเงื่อนไขบังคับกรอกรีพอร์ทตอนสถานะ 7 ไปเลย */
+  reportRequired: boolean;
 };
 
 /**
@@ -132,7 +134,7 @@ export function validateStatusRequirements(
       errors.push("ต้องมีตำแหน่งเก็บพาร์ท (บังคับตั้งแต่สถานะ 3-รับพาร์ทแล้ว)");
   }
 
-  if (idx >= STATUS_ORDER.indexOf("S7_SENT")) {
+  if (idx >= STATUS_ORDER.indexOf("S7_SENT") && data.reportRequired) {
     // ลิงก์รีพอร์ทหรือบันทึก "ส่งให้ใคร" อย่างใดอย่างหนึ่งพอ — กันเคสส่งจากมือถือที่ยังไม่มีลิงก์โฟลเดอร์กลางมาแปะตอนนั้น
     const hasSentReport = data.reports.some((r) => r.sentDate && (r.reportUrl || r.sentTo));
     if (!hasSentReport)

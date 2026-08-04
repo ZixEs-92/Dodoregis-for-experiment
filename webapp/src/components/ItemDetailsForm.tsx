@@ -6,7 +6,13 @@ import { FormErrors, FormSaved } from "@/components/FormMessages";
 import { useToastOnSaved } from "@/components/ui/Feedback";
 
 type Option = { id: number; name: string };
-export type PartChoice = { id: number; name: string; partNo: string | null; qty: number | null };
+export type PartChoice = {
+  id: number;
+  model: string;
+  partName: string | null;
+  partNo: string | null;
+  qty: number | null;
+};
 
 export type ItemDefaults = {
   testName: string;
@@ -77,8 +83,9 @@ export default function ItemDetailsForm({
                     defaultChecked={defaults.partIds.includes(p.id)}
                     className="accent-[#181d26]"
                   />
-                  {p.name}
-                  {p.partNo && <span className="opacity-70">({p.partNo})</span>}
+                  {p.model}
+                  {p.partName && <span className="opacity-70"> · {p.partName}</span>}
+                  {p.partNo && <span className="opacity-70"> ({p.partNo})</span>}
                 </label>
               ))}
             </div>

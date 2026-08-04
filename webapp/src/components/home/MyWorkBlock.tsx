@@ -63,7 +63,7 @@ export default async function MyWorkBlock({ memberId }: { memberId: number | nul
 type Row = {
   id: number;
   itemCode: string;
-  partName: string;
+  model: string;
   testName: string | null;
   testDetail: string;
   planEnd: Date | null;
@@ -99,7 +99,7 @@ function Group({
             >
               <StatusBadge status={it.status} />
               <span className="font-medium text-ink">
-                {testTitle(it.testName, it.testDetail) || it.partName}
+                {testTitle(it.testName, it.testDetail) || it.model}
               </span>
               {isUrgent(it.remark) && <span className="chip bg-coral text-white">ด่วน</span>}
               <span className="text-muted">· {it.request.requestDept.name}</span>

@@ -115,7 +115,9 @@ export default async function ItemDetailPage({
   const curIdx = STATUS_ORDER.indexOf(item.status);
   const nextStatus =
     curIdx >= 0 && curIdx < STATUS_ORDER.length - 1 ? STATUS_ORDER[curIdx + 1] : null;
-  const nextBlockers = nextStatus ? validateStatusRequirements(nextStatus, item) : [];
+  const nextBlockers = nextStatus
+    ? validateStatusRequirements(nextStatus, { ...item, reportRequired: item.request.reportRequired })
+    : [];
 
   const updateBound = updateItemDetails.bind(null, item.itemCode);
   const createRun = addTestRun.bind(null, item.itemCode);
@@ -235,7 +237,8 @@ export default async function ItemDetailPage({
         finishedLocations={finishedLocations.map((f) => ({ id: f.id, name: f.name }))}
         parts={item.request.parts.map((p) => ({
           id: p.id,
-          name: p.name,
+          model: p.model,
+          partName: p.partName,
           partNo: p.partNo,
           qty: p.qty,
         }))}
@@ -337,6 +340,11 @@ export default async function ItemDetailPage({
   const reportPanel = (
     <section className="card p-5 sm:p-6">
       <SectionTitle>รีพอร์ท (ของ item นี้)</SectionTitle>
+      {!item.request.reportRequired && (
+        <p className="mt-3 chip bg-info-soft text-info inline-block">
+          ℹ️ ใบนี้ระบุว่าไม่ต้องการรีพอร์ท — ข้ามขั้นตอนนี้แล้วปิดงานได้เลย
+        </p>
+      )}
       {missingReportLink && (
         <p className="mt-3 chip bg-mustard-soft text-mustard-deep inline-block">
           ⚠️ ยังไม่มีลิงก์รีพอร์ท — บันทึกไว้แค่ว่าส่งให้ {latestReport?.sentTo || "ใครไม่ระบุ"} ถ้ามีลิงก์โฟลเดอร์กลางแล้วช่วยกลับมาแปะด้วย
@@ -483,7 +491,8 @@ export default async function ItemDetailPage({
           </div>
           {itemTitle && <p className="text-[17px] font-medium text-ink">🧪 {itemTitle}</p>}
           <p className="text-[14px] text-muted">
-            ชิ้นงาน: {item.partName}
+            ชิ้นงาน: {item.model}
+            {item.partName && <span> · {item.partName}</span>}
             {item.partNo && <span> · {item.partNo}</span>}
           </p>
           <div className="flex items-center gap-2 text-[13px] text-muted">

@@ -8,7 +8,8 @@ import Icon from "@/components/ui/Icon";
 
 export type PartRow = {
   id: number;
-  name: string;
+  model: string;
+  partName: string | null;
   partNo: string | null;
   qty: number | null;
   usedBy: string[]; // itemCode ของรายการทดสอบที่ใช้ชิ้นงานนี้
@@ -45,7 +46,7 @@ export default function RequestParts({
       return;
     }
     const ok = await confirm({
-      title: `ลบชิ้นงาน “${p.name}” ?`,
+      title: `ลบชิ้นงาน “${p.model}” ?`,
       detail: "ลบได้เฉพาะชิ้นงานที่ยังไม่มีรายการทดสอบใช้อยู่",
       confirmLabel: "ลบชิ้นงาน",
       danger: true,
@@ -81,7 +82,8 @@ export default function RequestParts({
               key={p.id}
               className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-hairline px-3 py-2.5"
             >
-              <span className="text-[14px] font-medium text-ink">{p.name}</span>
+              <span className="text-[14px] font-medium text-ink">{p.model}</span>
+              {p.partName && <span className="text-[13px] text-muted">{p.partName}</span>}
               {p.partNo && <span className="text-[13px] text-muted">Part No. {p.partNo}</span>}
               {p.qty != null && <span className="text-[13px] text-muted">{p.qty} ชิ้น</span>}
               {p.usedBy.length > 0 ? (
@@ -107,14 +109,18 @@ export default function RequestParts({
       {canEdit && (
         <form
           action={formAction}
-          className="grid grid-cols-1 gap-3 border-t border-hairline pt-4 sm:grid-cols-[1fr_10rem_6rem_auto] sm:items-end"
+          className="grid grid-cols-1 gap-3 border-t border-hairline pt-4 sm:grid-cols-[8rem_1fr_8rem_6rem_auto] sm:items-end"
         >
-          <div className="sm:col-span-4">
+          <div className="sm:col-span-5">
             <FormErrors errors={state.errors} />
           </div>
           <label className="flex flex-col gap-1">
-            <span className="label-text">ชื่อชิ้นงาน / รุ่น Lamp *</span>
-            <input type="text" name="name" required className="input" placeholder="เช่น P703 LED HL HG" />
+            <span className="label-text">Model *</span>
+            <input type="text" name="model" required className="input" placeholder="เช่น P703" />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="label-text">ชื่อชิ้นงาน</span>
+            <input type="text" name="part_name" className="input" placeholder="เช่น LED HL HG" />
           </label>
           <label className="flex flex-col gap-1">
             <span className="label-text">Part No.</span>

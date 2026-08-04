@@ -38,7 +38,7 @@ export async function generateDueNotifications(): Promise<number> {
         level: "CRITICAL",
         itemId: it.id,
         dedupeKey: `OVERDUE:${it.id}:${today}`,
-        message: `เลยกำหนด plan จบ: ${it.itemCode} · ${it.partName} · ผู้รับผิดชอบ ${it.owner?.name ?? "ยังไม่มอบหมาย"}`,
+        message: `เลยกำหนด plan จบ: ${it.itemCode} · ${it.model} · ผู้รับผิดชอบ ${it.owner?.name ?? "ยังไม่มอบหมาย"}`,
       });
     } else if (isDueSoon(it.planEnd, it.status)) {
       rows.push({
@@ -46,7 +46,7 @@ export async function generateDueNotifications(): Promise<number> {
         level: "WARNING",
         itemId: it.id,
         dedupeKey: `DUE_SOON:${it.id}:${today}`,
-        message: `ใกล้ถึงกำหนด: ${it.itemCode} · ${it.partName} · ผู้รับผิดชอบ ${it.owner?.name ?? "ยังไม่มอบหมาย"}`,
+        message: `ใกล้ถึงกำหนด: ${it.itemCode} · ${it.model} · ผู้รับผิดชอบ ${it.owner?.name ?? "ยังไม่มอบหมาย"}`,
       });
     }
   }

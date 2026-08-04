@@ -35,10 +35,14 @@ export type NormItem = {
   bkkYear: number;
   bkkMonth: number; // 1-12
   // ชิ้นงาน
+  model: string;
   partName: string;
   partNo: string;
   qty: number | null;
   partsList: string; // รุ่น Lamp ที่รายการนี้ครอบคลุม
+  // ที่มาจากใบรีเควส (คนละแกนกับ item)
+  desiredDate: Date | null;
+  reportRequired: boolean;
   // การทดสอบ
   testName: string;
   testDetail: string;
@@ -86,7 +90,7 @@ export type RunRow = {
   regisNo: string;
   itemCode: string;
   testName: string;
-  partName: string;
+  model: string;
   dept: string;
   runNo: number;
   startDate: Date | null;
@@ -120,6 +124,8 @@ export type RequestRow = {
   progressPct: number;
   firstSentDate: Date | null;
   leadDays: number;
+  desiredDate: Date | null;
+  reportRequired: boolean;
   bkkYear: number;
   bkkMonth: number;
 };
@@ -128,7 +134,8 @@ export type PartRow = {
   regisNo: string;
   dept: string;
   requestDate: Date;
-  name: string;
+  model: string;
+  partName: string;
   partNo: string;
   qty: number | null;
   usedByCount: number;
@@ -200,10 +207,13 @@ export async function getAllReportItems(): Promise<NormItem[]> {
       bkkYear: y,
       bkkMonth: m,
 
-      partName: it.partName,
+      model: it.model,
+      partName: it.partName ?? "",
       partNo: it.partNo ?? "",
       qty: it.qty,
-      partsList: it.parts.map((p) => p.name + (p.partNo ? ` (${p.partNo})` : "")).join(" | "),
+      partsList: it.parts.map((p) => p.model + (p.partNo ? ` (${p.partNo})` : "")).join(" | "),
+      desiredDate: it.request.desiredDate,
+      reportRequired: it.request.reportRequired,
 
       testName: testTitle(it.testName, it.testDetail),
       testDetail: it.testDetail,
@@ -268,7 +278,7 @@ export async function getAllRunRows(): Promise<RunRow[]> {
     regisNo: r.item.regisNo,
     itemCode: r.item.itemCode,
     testName: testTitle(r.item.testName, r.item.testDetail),
-    partName: r.item.partName,
+    model: r.item.model,
     dept: r.item.request.requestDept.name,
     runNo: r.runNo,
     startDate: r.startDate,
@@ -328,7 +338,7 @@ export async function getAllRequestRows(): Promise<{
       remark: r.remark ?? "",
       createdByName: r.createdBy?.displayName ?? "",
       partCount: r.parts.length,
-      partsList: r.parts.map((p) => p.name + (p.partNo ? ` (${p.partNo})` : "")).join(" | "),
+      partsList: r.parts.map((p) => p.model + (p.partNo ? ` (${p.partNo})` : "")).join(" | "),
       itemCount: r.items.length,
       doneCount: roll.done,
       overdueCount: roll.overdueCount,
@@ -337,6 +347,8 @@ export async function getAllRequestRows(): Promise<{
       progressPct: roll.progressPct,
       firstSentDate: firstSent,
       leadDays: lead.days,
+      desiredDate: r.desiredDate,
+      reportRequired: r.reportRequired,
       bkkYear: y,
       bkkMonth: m,
     });
@@ -346,7 +358,8 @@ export async function getAllRequestRows(): Promise<{
         regisNo: r.regisNo,
         dept: r.requestDept.name,
         requestDate: r.requestDate,
-        name: p.name,
+        model: p.model,
+        partName: p.partName ?? "",
         partNo: p.partNo ?? "",
         qty: p.qty,
         usedByCount: p.items.length,
@@ -479,7 +492,9 @@ export const DETAIL_HEADERS = [
   "แผนกที่ขอ", "ผู้ขอ", "อีเมลผู้ขอ", "เบอร์ผู้ขอ", "วันที่รับใบ",
   "test object (ส่งอะไรมา)", "วัตถุประสงค์", "หมายเหตุใบ", "ผู้บันทึกใบ",
   // ชิ้นงาน
-  "ชื่อชิ้นงาน (รวม)", "part_no", "จำนวน", "รุ่น Lamp ที่ทดสอบ",
+  "Model (รวม)", "ชื่อชิ้นงาน (รวม)", "part_no", "จำนวน", "รุ่น Lamp ที่ทดสอบ",
+  // requester
+  "วันที่ต้องการผล (ผู้ขอ)", "ต้องการรีพอร์ท",
   // การทดสอบ
   "ชื่อการทดสอบ", "รายละเอียดเทส/มาตรฐาน", "สถานะ", "ผู้รับผิดชอบ", "งานด่วน", "หมายเหตุรายการ",
   // แผน / จริง
@@ -504,7 +519,9 @@ export function detailRows(items: NormItem[], baseUrl = ""): (string | number)[]
     i.dept, i.requester, i.requesterEmail, i.requesterPhone, csvDate(i.requestDate),
     i.testObject, i.purpose, i.requestRemark, i.createdByName,
 
-    i.partName, i.partNo, i.qty ?? "", i.partsList,
+    i.model, i.partName, i.partNo, i.qty ?? "", i.partsList,
+
+    csvDate(i.desiredDate), i.reportRequired ? "ใช่" : "ไม่",
 
     i.testName, i.testDetail, STATUS_LABEL[i.status], i.owner, yn(i.urgent), i.remark,
 
@@ -526,14 +543,14 @@ export function detailRows(items: NormItem[], baseUrl = ""): (string | number)[]
 // ── CSV: ราย test run ────────────────────────────────────────
 
 export const RUN_HEADERS = [
-  "regis_no", "item_code", "ชื่อการทดสอบ", "ชิ้นงาน", "แผนกที่ขอ",
+  "regis_no", "item_code", "ชื่อการทดสอบ", "Model", "แผนกที่ขอ",
   "ครั้งที่", "วันเริ่ม", "วันจบ", "ใช้เวลา (วัน)",
   "ผู้รับผิดชอบ loading", "ผู้ทดสอบ", "ผลเทส", "ลิงก์ raw data", "หมายเหตุ",
 ];
 
 export function runRows(rows: RunRow[]): (string | number)[][] {
   return rows.map((r) => [
-    r.regisNo, r.itemCode, r.testName, r.partName, r.dept,
+    r.regisNo, r.itemCode, r.testName, r.model, r.dept,
     r.runNo, csvDate(r.startDate), csvDate(r.endDate), r.durationDays ?? "",
     r.loadingOwner, r.testOwner, r.result, r.rawDataUrl, r.remark,
   ]);
@@ -545,6 +562,7 @@ export const REQUEST_HEADERS = [
   "regis_no", "ลิงก์เปิดใบ", "แผนกที่ขอ", "ผู้ขอ", "อีเมลผู้ขอ", "เบอร์ผู้ขอ", "วันที่รับใบ",
   "test object (ส่งอะไรมา)", "วัตถุประสงค์", "หมายเหตุ", "ผู้บันทึกใบ",
   "จำนวนรุ่น Lamp", "รุ่น Lamp ทั้งหมด",
+  "วันที่ต้องการผล", "ต้องการรีพอร์ท",
   "จำนวนรายการทดสอบ", "ปิดงานแล้ว", "เลยกำหนด", "ยังไม่มอบหมาย",
   "สถานะรวม", "ความคืบหน้า (%)", "วันส่งรีพอร์ทแรก", "lead time (วัน)",
 ];
@@ -555,6 +573,7 @@ export function requestRows(rows: RequestRow[], baseUrl = ""): (string | number)
     r.dept, r.requester, r.requesterEmail, r.requesterPhone, csvDate(r.requestDate),
     r.testObject, r.purpose, r.remark, r.createdByName,
     r.partCount, r.partsList,
+    csvDate(r.desiredDate), r.reportRequired ? "ใช่" : "ไม่",
     r.itemCount, r.doneCount, r.overdueCount, r.unassignedCount,
     r.phase, r.progressPct, csvDate(r.firstSentDate), r.leadDays,
   ]);
@@ -563,13 +582,13 @@ export function requestRows(rows: RequestRow[], baseUrl = ""): (string | number)
 // ── CSV: รายชิ้นงาน ──────────────────────────────────────────
 
 export const PART_HEADERS = [
-  "regis_no", "แผนกที่ขอ", "วันที่รับใบ", "ชื่อชิ้นงาน / รุ่น Lamp", "part_no", "จำนวน",
+  "regis_no", "แผนกที่ขอ", "วันที่รับใบ", "Model", "ชื่อชิ้นงาน", "part_no", "จำนวน",
   "ใช้ในกี่รายการทดสอบ", "รายการทดสอบที่ใช้",
 ];
 
 export function partRows(rows: PartRow[]): (string | number)[][] {
   return rows.map((p) => [
-    p.regisNo, p.dept, csvDate(p.requestDate), p.name, p.partNo, p.qty ?? "",
+    p.regisNo, p.dept, csvDate(p.requestDate), p.model, p.partName, p.partNo, p.qty ?? "",
     p.usedByCount, p.usedBy,
   ]);
 }

@@ -43,7 +43,7 @@ export default async function BoardPage({
   const cards: BoardItem[] = items.map((it) => ({
     itemCode: it.itemCode,
     title: testTitle(it.testName, it.testDetail),
-    partName: it.partName,
+    partName: it.model,
     ownerName: it.owner?.name ?? null,
     dept: it.request.requestDept.name,
     planEnd: it.planEnd ? toDisplayDate(it.planEnd) : null,

@@ -36,7 +36,7 @@ function writeDraft(value: string | null) {
 
 type Option = { id: number; name: string };
 
-type PartRow = { name: string; partNo: string; qty: string };
+type PartRow = { model: string; partName: string; partNo: string; qty: string };
 type ItemRow = {
   testName: string;
   testDetail: string;
@@ -64,7 +64,7 @@ function guessKind(file: File): AttachmentKindKey {
   return "OTHER";
 }
 
-const emptyPart = (): PartRow => ({ name: "", partNo: "", qty: "" });
+const emptyPart = (): PartRow => ({ model: "", partName: "", partNo: "", qty: "" });
 const emptyItem = (): ItemRow => ({
   testName: "",
   testDetail: "",
@@ -212,7 +212,7 @@ export default function NewRequestForm({
     setDismissed(true);
   }
 
-  const namedParts = parts.filter((p) => p.name.trim());
+  const namedParts = parts.filter((p) => p.model.trim());
 
   return (
     <form
@@ -295,6 +295,17 @@ export default function NewRequestForm({
             placeholder="เช่น เปลี่ยนซัพพลายเออร์เลนส์ ต้องยืนยันว่าค่าความสว่างยังผ่านมาตรฐานเดิม"
           />
         </Field>
+        <Field label="วันที่อยากได้ผล">
+          <input type="date" name="desired_date" className="input" />
+          <span className="text-[11px] text-muted">ไม่การันตี — ไว้ให้ทีมแลปเห็นความคาดหวังของผู้ขอ</span>
+        </Field>
+        <label className="flex flex-col gap-1.5 justify-end">
+          <span className="inline-flex items-center gap-2 text-[14px] text-ink">
+            <input type="checkbox" name="report_required" value="1" defaultChecked className="accent-[#181d26]" />
+            งานนี้ต้องการรีพอร์ท
+          </span>
+          <span className="text-[11px] text-muted">ถ้าไม่ติ๊ก จะข้ามขั้นตอนออกรีพอร์ทแล้วปิดงานได้เลย</span>
+        </label>
         <Field label="หมายเหตุใบรีเควส" className="sm:col-span-2">
           <input type="text" name="request_remark" className="input" />
         </Field>
@@ -315,16 +326,26 @@ export default function NewRequestForm({
           {parts.map((p, i) => (
             <div
               key={i}
-              className="grid grid-cols-1 gap-2 rounded-lg border border-hairline p-3 sm:grid-cols-[1fr_10rem_6rem_auto] sm:items-end"
+              className="grid grid-cols-1 gap-2 rounded-lg border border-hairline p-3 sm:grid-cols-[8rem_1fr_8rem_6rem_auto] sm:items-end"
             >
               <label className="flex flex-col gap-1">
-                <span className="label-text">ชื่อชิ้นงาน / รุ่น Lamp</span>
+                <span className="label-text">Model</span>
                 <input
                   type="text"
-                  value={p.name}
-                  onChange={(e) => setPart(i, { name: e.target.value })}
+                  value={p.model}
+                  onChange={(e) => setPart(i, { model: e.target.value })}
                   className="input"
-                  placeholder="เช่น P703 LED HL HG"
+                  placeholder="เช่น P703"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="label-text">ชื่อชิ้นงาน</span>
+                <input
+                  type="text"
+                  value={p.partName}
+                  onChange={(e) => setPart(i, { partName: e.target.value })}
+                  className="input"
+                  placeholder="เช่น LED HL HG"
                 />
               </label>
               <label className="flex flex-col gap-1">
@@ -431,7 +452,7 @@ export default function NewRequestForm({
                     ) : (
                       <div className="flex flex-wrap gap-2">
                         {parts.map((p, pi) =>
-                          p.name.trim() ? (
+                          p.model.trim() ? (
                             <label
                               key={pi}
                               className={`inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 text-[13px] transition-colors ${
@@ -447,10 +468,15 @@ export default function NewRequestForm({
                                 className="sr-only"
                               />
                               {it.partIdx.includes(pi) && <Icon name="check" size={14} />}
-                              {p.name}
+                              {p.model}
+                              {p.partName && (
+                                <span className={it.partIdx.includes(pi) ? "text-white/70" : "text-muted"}>
+                                  {" "}· {p.partName}
+                                </span>
+                              )}
                               {p.partNo && (
                                 <span className={it.partIdx.includes(pi) ? "text-white/70" : "text-muted"}>
-                                  ({p.partNo})
+                                  {" "}({p.partNo})
                                 </span>
                               )}
                             </label>

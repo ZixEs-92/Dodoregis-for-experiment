@@ -102,7 +102,7 @@ export default async function SchedulePage({
       }
       return {
         itemCode: it.itemCode,
-        label: testTitle(it.testName, it.testDetail) || it.partName,
+        label: testTitle(it.testName, it.testDetail) || it.model,
         ownerName: it.owner?.name ?? "ยังไม่มอบหมาย",
         status: it.status,
         overdue: isOverdue(it.planEnd, it.status),
@@ -181,7 +181,7 @@ export default async function SchedulePage({
 
     const schedItem: SchedItem = {
       itemCode: it.itemCode,
-      partName: it.partName,
+      partName: it.model,
       testTitle: testTitle(it.testName, it.testDetail),
       status: it.status,
       planStart: it.planStart ? it.planStart.toISOString() : null,

@@ -74,6 +74,7 @@ export default async function RequestsPage({
   if (sp.q) {
     where.OR = [
       { itemCode: { contains: sp.q } },
+      { model: { contains: sp.q } },
       { partName: { contains: sp.q } },
       { partNo: { contains: sp.q } },
       { regisNo: { contains: sp.q } },
@@ -93,7 +94,7 @@ export default async function RequestsPage({
   const rows: ItemRow[] = items.map((it) => ({
     itemCode: it.itemCode,
     itemNo: it.itemNo,
-    partName: it.partName,
+    partName: it.model,
     partNo: it.partNo,
     testTitle: testTitle(it.testName, it.testDetail),
     status: it.status,

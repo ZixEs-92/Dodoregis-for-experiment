@@ -7,7 +7,13 @@ import { useToastOnSaved } from "@/components/ui/Feedback";
 import Icon from "@/components/ui/Icon";
 
 type Option = { id: number; name: string };
-export type PartOption = { id: number; name: string; partNo: string | null; qty: number | null };
+export type PartOption = {
+  id: number;
+  model: string;
+  partName: string | null;
+  partNo: string | null;
+  qty: number | null;
+};
 
 const initial: ActionResult = { ok: true, errors: [] };
 
@@ -63,8 +69,9 @@ export default function AddItemForm({
                   className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-hairline bg-canvas px-3 text-[13px] text-body transition-colors hover:bg-surface-soft has-[:checked]:border-ink has-[:checked]:bg-ink has-[:checked]:text-white"
                 >
                   <input type="checkbox" name="part_ids" value={p.id} className="accent-[#181d26]" />
-                  {p.name}
-                  {p.partNo && <span className="opacity-70">({p.partNo})</span>}
+                  {p.model}
+                  {p.partName && <span className="opacity-70"> · {p.partName}</span>}
+                  {p.partNo && <span className="opacity-70"> ({p.partNo})</span>}
                 </label>
               ))}
             </div>

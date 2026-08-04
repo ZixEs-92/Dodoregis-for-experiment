@@ -134,6 +134,11 @@ model TestRequest {
   remark    String?
   folderUrl String? @map("folder_url")
 
+  // วันที่ requester อยากได้ผล (ไม่การันตี — แค่ไว้ให้ทีมแลปเห็นความคาดหวัง) · เริ่มเก็บ ส.ค. 2026
+  desiredDate DateTime? @map("desired_date")
+  // งานนี้ต้องการรีพอร์ทไหม — ถ้าไม่ ทุก item ในใบข้ามเงื่อนไขบังคับกรอกรีพอร์ทตอนเข้าสถานะ 7 ได้ (lib/workflow.ts)
+  reportRequired Boolean @default(true) @map("report_required")
+
   // groundwork: token สำหรับ requester portal (ดูสถานะแบบอ่านอย่างเดียว) — ยังไม่เปิดใช้
   publicToken String? @unique @map("public_token")
 
@@ -183,7 +188,8 @@ model RequestPart {
   regisNo String      @map("regis_no")
   request TestRequest @relation(fields: [regisNo], references: [regisNo], onDelete: Cascade)
 
-  name      String // ชื่อชิ้นงาน / รุ่น Lamp
+  model     String  @map("model") // รุ่น Lamp เช่น "P703"
+  partName  String? @map("part_name") // ชื่อ/ประเภทชิ้นงาน เช่น "LED HL HG"
   partNo    String? @map("part_no")
   qty       Int?
   sortOrder Int     @default(0) @map("sort_order")
@@ -209,7 +215,8 @@ model TestItem {
   parts RequestPart[]
 
   // สรุปจากชิ้นงานที่เลือก (cache ไว้ให้ list/label/report/CSV ใช้ได้เร็วโดยไม่ต้อง join)
-  partName String  @map("part_name")
+  model    String  @map("model") // รุ่น Lamp เช่น "P703"
+  partName String? @map("part_name") // ชื่อ/ประเภทชิ้นงาน เช่น "LED HL HG"
   partNo   String? @map("part_no")
   qty      Int?
   testName String? @map("test_name") // ชื่อการทดสอบ/หัวข้อ (เช่น "Photometric Test (KST)") ใช้แยกแต่ละ item

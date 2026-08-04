@@ -107,7 +107,7 @@ const KIND_VALUES: string[] = [
 
 // ── ชิ้นงาน (RequestPart) ────────────────────────────────────
 
-export type PartInput = { name: string; partNo?: string | null; qty?: number | null };
+export type PartInput = { model: string; partName?: string | null; partNo?: string | null; qty?: number | null };
 export type ItemInput = {
   testName?: string | null;
   testDetail: string;
@@ -121,12 +121,13 @@ export type ItemInput = {
   ownerId?: number | null;
 };
 
-type PartLike = { name: string; partNo: string | null; qty: number | null };
+type PartLike = { model: string; partName: string | null; partNo: string | null; qty: number | null };
 
 /** สรุปชิ้นงานที่เลือก → เก็บลง item เป็น cache ให้ list/label/report ใช้ได้เร็ว */
 function summarizeParts(parts: PartLike[]) {
   return {
-    partName: parts.map((p) => p.name).join(" · ") || "—",
+    model: parts.map((p) => p.model).join(" · ") || "—",
+    partName: parts.map((p) => p.partName).filter(Boolean).join(" · ") || null,
     partNo: parts.map((p) => p.partNo).filter(Boolean).join(" · ") || null,
     qty: parts.reduce((n, p) => n + (p.qty ?? 0), 0) || null,
   };
@@ -241,11 +242,12 @@ export async function createRequest(
 
   const parts = jsonField<PartInput>(formData, "parts_json")
     .map((p) => ({
-      name: (p.name ?? "").trim(),
+      model: (p.model ?? "").trim(),
+      partName: p.partName?.trim() || null,
       partNo: p.partNo?.trim() || null,
       qty: Number.isFinite(Number(p.qty)) && Number(p.qty) > 0 ? Number(p.qty) : null,
     }))
-    .filter((p) => p.name);
+    .filter((p) => p.model);
 
   const itemInputs = jsonField<ItemInput>(formData, "items_json")
     .map((i) => ({
@@ -307,6 +309,9 @@ export async function createRequest(
           purpose: str(formData, "purpose"),
           requestDate,
           remark: str(formData, "request_remark"),
+          desiredDate: date(formData, "desired_date"),
+          // checkbox defaultChecked ในฟอร์ม — ไม่ติ๊กแล้ว uncheck จะไม่ส่งค่ามาเลย (พฤติกรรมปกติของ checkbox)
+          reportRequired: str(formData, "report_required") === "1",
           createdById: user.id,
           approvalStatus,
           submittedAt,
@@ -499,14 +504,15 @@ export async function addRequestPart(
   const denied = await assertCanEditRequest(regisNo);
   if (denied) return { ok: false, errors: [denied] };
 
-  const name = str(formData, "name");
-  if (!name) return { ok: false, errors: ["กรุณากรอกชื่อชิ้นงาน / รุ่น Lamp"] };
+  const model = str(formData, "model");
+  if (!model) return { ok: false, errors: ["กรุณากรอก Model / รุ่น Lamp"] };
 
   const count = await prisma.requestPart.count({ where: { regisNo } });
   await prisma.requestPart.create({
     data: {
       regisNo,
-      name,
+      model,
+      partName: str(formData, "part_name"),
       partNo: str(formData, "part_no"),
       qty: num(formData, "qty"),
       sortOrder: count,
@@ -553,7 +559,13 @@ export async function updateItemDetails(
 
   const current = await prisma.testItem.findUniqueOrThrow({
     where: { itemCode },
-    include: { reports: true, partLocation: true, finishedPartLocation: true, parts: true },
+    include: {
+      reports: true,
+      partLocation: true,
+      finishedPartLocation: true,
+      parts: true,
+      request: { select: { reportRequired: true } },
+    },
   });
 
   const partIds = partIdsFromForm(formData);
@@ -577,6 +589,7 @@ export async function updateItemDetails(
     finishedPartLocationId: data.finishedPartLocationId,
     rawDataLocation: data.rawDataLocation,
     reports: current.reports,
+    reportRequired: current.request.reportRequired,
   });
   if (invariantErrors.length > 0) {
     return {
@@ -707,7 +720,7 @@ export async function changeItemStatus(itemCode: string, target: RequestStatus) 
     where: { itemCode },
     include: {
       reports: { orderBy: { id: "desc" } },
-      request: { select: { approvalStatus: true } },
+      request: { select: { approvalStatus: true, reportRequired: true } },
     },
   });
 
@@ -731,7 +744,10 @@ export async function changeItemStatus(itemCode: string, target: RequestStatus) 
     };
   }
 
-  const errors = validateStatusRequirements(target, item);
+  const errors = validateStatusRequirements(target, {
+    ...item,
+    reportRequired: item.request.reportRequired,
+  });
   if (errors.length > 0) {
     return { ok: false as const, errors };
   }
@@ -776,7 +792,7 @@ export async function changeItemStatus(itemCode: string, target: RequestStatus) 
         changedBy: editor?.displayName ?? null,
       },
     });
-    await notifyStatusChange(item.id, item.itemCode, item.partName, target);
+    await notifyStatusChange(item.id, item.itemCode, item.model, target);
   }
 
   revalidatePath(`/items/${itemCode}`);

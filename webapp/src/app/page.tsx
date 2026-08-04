@@ -134,7 +134,7 @@ async function TeamDashboard({
 
   const loadItems: LoadItem[] = active.map((i) => ({
     itemCode: i.itemCode,
-    partName: i.partName,
+    partName: i.model,
     status: i.status,
     ownerName: i.owner?.name ?? "ยังไม่มอบหมาย",
     planStart: i.planStart ? i.planStart.toISOString() : null,

@@ -73,7 +73,7 @@ async function main() {
           {
             itemNo: 1,
             itemCode: code(r1, 1),
-            partName: "Lamp Model A Headlight (Low beam)",
+            model: "Lamp Model A Headlight (Low beam)",
             partNo: "LMP-A-001",
             qty: 3,
             partReceivedDate: d("2026-07-05"),
@@ -88,7 +88,7 @@ async function main() {
           {
             itemNo: 2,
             itemCode: code(r1, 2),
-            partName: "Lamp Model A Headlight (High beam)",
+            model: "Lamp Model A Headlight (High beam)",
             partNo: "LMP-A-002",
             qty: 3,
             partReceivedDate: d("2026-07-05"),
@@ -102,7 +102,7 @@ async function main() {
           {
             itemNo: 3,
             itemCode: code(r1, 3),
-            partName: "Lamp Model A DRL",
+            model: "Lamp Model A DRL",
             partNo: "LMP-A-003",
             qty: 2,
             testDetail: "ECE R7 — Color + Luminous Intensity",
@@ -129,7 +129,7 @@ async function main() {
           {
             itemNo: 1,
             itemCode: code(r2, 1),
-            partName: "Lamp Model F Reverse Lamp",
+            model: "Lamp Model F Reverse Lamp",
             partNo: "LMP-F-061",
             qty: 3,
             partReceivedDate: d("2026-06-14"),
@@ -179,7 +179,7 @@ async function main() {
           {
             itemNo: 1,
             itemCode: code(r3, 1),
-            partName: "Lamp Model D Signal Lamp (หน้า)",
+            model: "Lamp Model D Signal Lamp (หน้า)",
             partNo: "LMP-D-033",
             qty: 6,
             partReceivedDate: d("2026-06-25"),
@@ -195,7 +195,7 @@ async function main() {
           {
             itemNo: 2,
             itemCode: code(r3, 2),
-            partName: "Lamp Model D Signal Lamp (หลัง)",
+            model: "Lamp Model D Signal Lamp (หลัง)",
             partNo: "LMP-D-034",
             qty: 6,
             partReceivedDate: d("2026-06-25"),
@@ -238,7 +238,7 @@ async function main() {
           {
             itemNo: 1,
             itemCode: code(r4, 1),
-            partName: "Lamp Model H Stop Lamp",
+            model: "Lamp Model H Stop Lamp",
             partNo: "LMP-H-088",
             qty: 5,
             partReceivedDate: d("2026-05-10"),
@@ -297,7 +297,7 @@ async function main() {
           {
             itemNo: 1,
             itemCode: code(r5, 1),
-            partName: "Lamp Model B Tail Lamp",
+            model: "Lamp Model B Tail Lamp",
             partNo: "LMP-B-014",
             qty: 5,
             testDetail: "JIS D5500 — Vibration + Thermal Shock",

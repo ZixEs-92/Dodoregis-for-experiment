@@ -169,6 +169,17 @@ export default async function RequestOverviewPage({
               />
             )}
             <Row label="วันที่ได้ใบรีเควส" value={toDisplayDate(request.requestDate)} />
+            {request.desiredDate && (
+              <Row
+                label="วันที่อยากได้ผล"
+                value={<>{toDisplayDate(request.desiredDate)} <span className="text-muted">(ไม่การันตี)</span></>}
+              />
+            )}
+            {!request.reportRequired && (
+              <div className="sm:col-span-2">
+                <Row label="รีพอร์ท" value={<span className="chip bg-info-soft text-info">ไม่ต้องการรีพอร์ท — ข้ามขั้นตอนออกรีพอร์ทได้</span>} />
+              </div>
+            )}
             {request.remark && <Row label="หมายเหตุ" value={request.remark} />}
             {request.folderUrl && (
               <Row label="โฟลเดอร์งาน" value={<a href={request.folderUrl} target="_blank" className="text-link hover:underline">เปิด Drive</a>} />
@@ -201,7 +212,8 @@ export default async function RequestOverviewPage({
         canEdit={canEditContent}
         parts={request.parts.map((p) => ({
           id: p.id,
-          name: p.name,
+          model: p.model,
+          partName: p.partName,
           partNo: p.partNo,
           qty: p.qty,
           usedBy: p.items.map((i) => i.itemCode),
@@ -248,7 +260,8 @@ export default async function RequestOverviewPage({
                     <div className="text-[15px] font-medium text-ink">🧪 {testTitle(it.testName, it.testDetail)}</div>
                   )}
                   <div className="text-[13px] text-muted">
-                    ชิ้นงาน: {it.partName}
+                    ชิ้นงาน: {it.model}
+                    {it.partName && <span> · {it.partName}</span>}
                     {it.partNo && <span> · {it.partNo}</span>}
                   </div>
                   <div className="flex items-center justify-between text-[12px]">
@@ -275,7 +288,8 @@ export default async function RequestOverviewPage({
             members={members.map((m) => ({ id: m.id, name: m.name }))}
             parts={request.parts.map((p) => ({
               id: p.id,
-              name: p.name,
+              model: p.model,
+              partName: p.partName,
               partNo: p.partNo,
               qty: p.qty,
             }))}
