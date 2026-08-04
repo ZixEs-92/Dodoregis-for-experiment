@@ -331,9 +331,17 @@ export default async function ItemDetailPage({
     </section>
   );
 
+  // ส่งแล้วแต่ยังไม่มีลิงก์ (ใช้ "ส่งให้ใคร" แทนตอนกดปิดจากมือถือ) — เตือนไว้ ไม่บล็อกการปิดงาน
+  const missingReportLink = !!latestReport?.sentDate && !latestReport?.reportUrl;
+
   const reportPanel = (
     <section className="card p-5 sm:p-6">
       <SectionTitle>รีพอร์ท (ของ item นี้)</SectionTitle>
+      {missingReportLink && (
+        <p className="mt-3 chip bg-mustard-soft text-mustard-deep inline-block">
+          ⚠️ ยังไม่มีลิงก์รีพอร์ท — บันทึกไว้แค่ว่าส่งให้ {latestReport?.sentTo || "ใครไม่ระบุ"} ถ้ามีลิงก์โฟลเดอร์กลางแล้วช่วยกลับมาแปะด้วย
+        </p>
+      )}
       {canEdit ? (
       <form action={saveReport} className="grid grid-cols-1 gap-4 mt-4 sm:grid-cols-2">
         <Field label="สถานะรีพอร์ท">
@@ -344,6 +352,9 @@ export default async function ItemDetailPage({
         <Field label="วันที่ส่งรีพอร์ท"><input type="date" name="sent_date" defaultValue={toInputDate(latestReport?.sentDate)} className="input" /></Field>
         <Field label="ที่อยู่ไฟล์"><input type="text" name="file_path" defaultValue={latestReport?.filePath ?? ""} className="input" /></Field>
         <Field label="ลิงก์รีพอร์ท"><input type="url" name="report_url" defaultValue={latestReport?.reportUrl ?? ""} className="input" /></Field>
+        <Field label="ส่งให้ใคร (ถ้ายังไม่มีลิงก์)">
+          <input type="text" name="sent_to" defaultValue={latestReport?.sentTo ?? ""} placeholder="เช่น อีเมลผู้ขอ หรือชื่อผู้รับ" className="input" />
+        </Field>
         <Field label="ผู้จัดทำ">
           <select name="author" defaultValue={latestReport?.authorId ?? ""} className="input">
             <option value="">- ไม่ระบุ -</option>
@@ -373,6 +384,7 @@ export default async function ItemDetailPage({
               ) : "—"
             }
           />
+          <Info label="ส่งให้ใคร" value={latestReport.sentTo ?? "—"} />
           <Info label="ผู้จัดทำ" value={latestReport.author?.name ?? "—"} />
           <Info label="ผู้อนุมัติ" value={latestReport.approver?.name ?? "—"} />
         </dl>

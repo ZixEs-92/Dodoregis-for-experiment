@@ -297,6 +297,8 @@ model Report {
   sentDate  DateTime? @map("sent_date")
   filePath  String?   @map("file_path")
   reportUrl String?   @map("report_url")
+  // ทางเลือกแทนลิงก์ — เผื่อกดปิดงานจากมือถือแล้วยังไม่มีลิงก์โฟลเดอร์กลางมาแปะ (เช่น "ส่งอีเมลให้ ก้อง QC แล้ว")
+  sentTo    String?   @map("sent_to")
 
   author     Member? @relation("Author", fields: [authorId], references: [id])
   authorId   Int?    @map("author_id")

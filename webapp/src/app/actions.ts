@@ -756,7 +756,7 @@ export async function changeItemStatus(itemCode: string, target: RequestStatus) 
   });
 
   if (target === "S7_SENT") {
-    const sentReport = item.reports.find((r) => r.sentDate && r.reportUrl);
+    const sentReport = item.reports.find((r) => r.sentDate && (r.reportUrl || r.sentTo));
     if (sentReport && sentReport.status !== "SENT") {
       await prisma.report.update({
         where: { id: sentReport.id },
@@ -1112,6 +1112,7 @@ export async function upsertReport(itemCode: string, formData: FormData) {
     sentDate: date(formData, "sent_date"),
     filePath: str(formData, "file_path"),
     reportUrl: str(formData, "report_url"),
+    sentTo: str(formData, "sent_to"),
     authorId: num(formData, "author"),
     approverId: num(formData, "approver"),
   };

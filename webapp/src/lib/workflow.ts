@@ -107,7 +107,7 @@ export type ItemForValidation = {
   partLocationId: number | null;
   finishedPartLocationId: number | null;
   rawDataLocation: string | null;
-  reports: { sentDate: Date | null; reportUrl: string | null }[];
+  reports: { sentDate: Date | null; reportUrl: string | null; sentTo: string | null }[];
 };
 
 /**
@@ -133,9 +133,10 @@ export function validateStatusRequirements(
   }
 
   if (idx >= STATUS_ORDER.indexOf("S7_SENT")) {
-    const hasSentReport = data.reports.some((r) => r.sentDate && r.reportUrl);
+    // ลิงก์รีพอร์ทหรือบันทึก "ส่งให้ใคร" อย่างใดอย่างหนึ่งพอ — กันเคสส่งจากมือถือที่ยังไม่มีลิงก์โฟลเดอร์กลางมาแปะตอนนั้น
+    const hasSentReport = data.reports.some((r) => r.sentDate && (r.reportUrl || r.sentTo));
     if (!hasSentReport)
-      errors.push("ต้องมีรีพอร์ทที่กรอกวันที่ส่ง+ลิงก์แล้ว (บังคับตั้งแต่สถานะ 7-ส่งรีพอร์ทแล้ว)");
+      errors.push("ต้องมีรีพอร์ทที่กรอกวันที่ส่ง + ลิงก์รีพอร์ทหรือบันทึกว่าส่งให้ใคร (บังคับตั้งแต่สถานะ 7-ส่งรีพอร์ทแล้ว)");
   }
 
   if (idx >= STATUS_ORDER.indexOf("S8_CLOSED")) {
