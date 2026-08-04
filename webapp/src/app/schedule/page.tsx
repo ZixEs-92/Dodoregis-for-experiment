@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { isOverdue, isUrgent } from "@/lib/workflow";
 import { testTitle } from "@/lib/format";
 import { guardPageUser } from "@/lib/guard";
+import { canEditTests, canPlanWork } from "@/lib/roles";
 import WeeklySchedule, { Person, DayHead, SchedItem } from "@/components/WeeklySchedule";
 import MonthSchedule, { MonthCell, MonthItem } from "@/components/MonthSchedule";
 import type { Prisma } from "@/generated/prisma/client";
@@ -30,7 +31,7 @@ function mondayOf(d: Date) {
 export default async function SchedulePage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; week?: string; month?: string; person?: string }>;
+  searchParams: Promise<{ view?: string; week?: string; month?: string; person?: string; mine?: string }>;
 }) {
   // ตารางงานเป็นข้อมูลภายในทีม (ใครทำอะไร โหลดงานแต่ละคน) — ต้องล็อกอินก่อน
   const user = await guardPageUser("/schedule");
@@ -40,9 +41,17 @@ export default async function SchedulePage({
 
   // requester เห็นเฉพาะงานของแผนกตัวเอง · ทีมแลป (engineer/admin) เห็นทุกงาน
   const deptScoped = user.role === "REQUESTER" && user.departmentId != null;
+
+  // สลับ "งานของฉัน" ↔ "งานทั้งทีม" — มีความหมายเฉพาะคนที่ผูก Member ไว้ (engineer/lab_head/admin ที่รับงานเอง)
+  // ค่าเริ่มต้น: engineer เห็นงานตัวเองก่อน (canPlanWork=false) ส่วน admin/lab_head เห็นภาพรวมทั้งทีมก่อน (ต้องวางแผน/มอบหมาย)
+  const canFilterMine = canEditTests(user.role) && user.memberId != null;
+  const defaultMine = canFilterMine && !canPlanWork(user.role);
+  const mine = canFilterMine && (sp.mine === "1" ? true : sp.mine === "0" ? false : defaultMine);
+
   const where: Prisma.TestItemWhereInput = {
     status: { notIn: ["S8_CLOSED", "S10_CANCEL"] },
     ...(deptScoped ? { request: { requestDeptId: user.departmentId! } } : {}),
+    ...(mine ? { ownerId: user.memberId! } : {}),
   };
 
   // งานที่ยังไม่ปิด/ยกเลิก
@@ -121,10 +130,13 @@ export default async function SchedulePage({
         items={monthItems}
         weekOffsets={weekOffsets}
         monthLabel={monthLabel}
+        monthOffset={monthOffset}
         prevHref={`/schedule?month=${monthOffset - 1}`}
         nextHref={`/schedule?month=${monthOffset + 1}`}
         todayHref="/schedule"
         isThisMonth={monthOffset === 0}
+        mine={mine}
+        canFilterMine={canFilterMine}
       />
     );
   }
@@ -207,6 +219,8 @@ export default async function SchedulePage({
       offset={offset}
       weekLabel={weekLabel}
       focusPerson={sp.person ? Number(sp.person) : null}
+      mine={mine}
+      canFilterMine={canFilterMine}
     />
   );
 }

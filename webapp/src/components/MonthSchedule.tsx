@@ -31,24 +31,38 @@ export default function MonthSchedule({
   items,
   weekOffsets,
   monthLabel,
+  monthOffset,
   prevHref,
   nextHref,
   todayHref,
   isThisMonth,
+  mine,
+  canFilterMine,
 }: {
   cells: MonthCell[];
   items: MonthItem[];
   /** ค่า ?week= ของแต่ละแถวสัปดาห์ในตาราง */
   weekOffsets: number[];
   monthLabel: string;
+  monthOffset: number;
   prevHref: string;
   nextHref: string;
   todayHref: string;
   isThisMonth: boolean;
+  /** true = กรองเหลือแค่งานของฉัน (มีความหมายเฉพาะ canFilterMine) */
+  mine: boolean;
+  /** ผู้ใช้คนนี้มีงานที่เป็นเจ้าของเองไหม — ถ้าไม่มีก็ไม่ต้องโชว์ปุ่มสลับ */
+  canFilterMine: boolean;
 }) {
   const weeks = Math.ceil(cells.length / 7);
   const totalPlanned = items.filter((i) => i.dayIndices.length > 0).length;
   const overdueCount = items.filter((i) => i.overdue).length;
+
+  // ต่อ ?mine=1/0 เข้ากับลิงก์นำทางทุกอัน เพื่อให้ค่าที่เลือกไว้ติดไปด้วยตอนเปลี่ยนเดือน/มุมมอง
+  const mineQS = canFilterMine ? `mine=${mine ? "1" : "0"}` : "";
+  const withMine = (href: string) => (mineQS ? `${href}${href.includes("?") ? "&" : "?"}${mineQS}` : href);
+  const teamHref = `/schedule?month=${monthOffset}&mine=0`;
+  const soloHref = `/schedule?month=${monthOffset}&mine=1`;
 
   return (
     <div className="flex flex-col gap-4">
@@ -56,35 +70,55 @@ export default function MonthSchedule({
         <div>
           <h1 className="text-[22px] font-medium text-ink sm:text-[26px]">ตารางงาน</h1>
           <p className="text-[14px] text-muted mt-0.5">
-            {monthLabel} · {totalPlanned} งานที่ลงแผนไว้
+            {monthLabel} · {totalPlanned} งาน{mine ? "ของฉัน" : ""}ที่ลงแผนไว้
             {overdueCount > 0 && <span className="text-coral"> · เลยกำหนด {overdueCount}</span>}
           </p>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          {canFilterMine && (
+            <span className="inline-flex rounded-lg border border-hairline bg-canvas p-0.5">
+              <Link
+                href={teamHref}
+                className={`rounded-md px-3 py-1.5 text-[13px] font-medium ${
+                  !mine ? "bg-ink text-white" : "text-muted hover:text-ink"
+                }`}
+              >
+                ทั้งทีม
+              </Link>
+              <Link
+                href={soloHref}
+                className={`rounded-md px-3 py-1.5 text-[13px] font-medium ${
+                  mine ? "bg-ink text-white" : "text-muted hover:text-ink"
+                }`}
+              >
+                ของฉัน
+              </Link>
+            </span>
+          )}
           <span className="inline-flex rounded-lg border border-hairline bg-canvas p-0.5">
             <span className="rounded-md bg-ink px-3 py-1.5 text-[13px] font-medium text-white">
               เดือน
             </span>
             <Link
-              href="/schedule?view=week"
+              href={withMine("/schedule?view=week")}
               className="rounded-md px-3 py-1.5 text-[13px] font-medium text-muted hover:text-ink"
             >
               สัปดาห์
             </Link>
           </span>
           <span className="inline-flex rounded-lg border border-hairline bg-canvas p-0.5">
-            <Link href={prevHref} className="rounded-md px-3 py-1.5 text-[13px] font-medium text-muted hover:text-ink">
+            <Link href={withMine(prevHref)} className="rounded-md px-3 py-1.5 text-[13px] font-medium text-muted hover:text-ink">
               ‹ ก่อนหน้า
             </Link>
             <Link
-              href={todayHref}
+              href={withMine(todayHref)}
               className={`rounded-md px-3 py-1.5 text-[13px] font-medium ${
                 isThisMonth ? "bg-ink text-white" : "text-muted hover:text-ink"
               }`}
             >
               เดือนนี้
             </Link>
-            <Link href={nextHref} className="rounded-md px-3 py-1.5 text-[13px] font-medium text-muted hover:text-ink">
+            <Link href={withMine(nextHref)} className="rounded-md px-3 py-1.5 text-[13px] font-medium text-muted hover:text-ink">
               ถัดไป ›
             </Link>
           </span>
@@ -164,7 +198,7 @@ export default function MonthSchedule({
 
               {/* แถบเจาะดูรายสัปดาห์ */}
               <Link
-                href={`/schedule?view=week&week=${weekOffsets[w]}`}
+                href={withMine(`/schedule?view=week&week=${weekOffsets[w]}`)}
                 className="flex items-center gap-2 border-t border-hairline bg-surface-soft/70 px-3 py-1.5 text-[12px] text-muted transition-colors hover:bg-surface-soft hover:text-ink"
               >
                 <span>สัปดาห์ที่ {w + 1}</span>

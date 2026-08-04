@@ -65,6 +65,8 @@ export default function WeeklySchedule({
   offset,
   weekLabel,
   focusPerson,
+  mine,
+  canFilterMine,
 }: {
   persons: Person[];
   days: DayHead[];
@@ -72,6 +74,10 @@ export default function WeeklySchedule({
   offset: number;
   weekLabel: string;
   focusPerson: number | null;
+  /** true = กรองเหลือแค่งานของฉัน (มีความหมายเฉพาะ canFilterMine) */
+  mine: boolean;
+  /** ผู้ใช้คนนี้มีงานที่เป็นเจ้าของเองไหม — ถ้าไม่มีก็ไม่ต้องโชว์ปุ่มสลับ */
+  canFilterMine: boolean;
 }) {
   const [expanded, setExpanded] = useState<Set<number>>(
     () => new Set(focusPerson != null ? [focusPerson] : [])
@@ -89,26 +95,38 @@ export default function WeeklySchedule({
   const showToday = todayIndex >= 0;
   const totalWeek = persons.reduce((n, p) => n + p.weekCount, 0);
 
+  // ต่อ ?mine=1/0 เข้ากับลิงก์นำทางทุกอัน เพื่อให้ค่าที่เลือกไว้ติดไปด้วยตอนเปลี่ยนสัปดาห์/มุมมอง
+  const mineQS = canFilterMine ? `mine=${mine ? "1" : "0"}` : "";
+  const withMine = (href: string) => (mineQS ? `${href}${href.includes("?") ? "&" : "?"}${mineQS}` : href);
+  const teamHref = `/schedule?view=week&week=${offset}&mine=0`;
+  const soloHref = `/schedule?view=week&week=${offset}&mine=1`;
+
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center gap-3">
         <div>
           <h1 className="text-[22px] font-medium text-ink sm:text-[26px]">ตารางงาน — รายสัปดาห์</h1>
           <p className="text-[14px] text-muted mt-0.5">
-            ใครมีงานอะไรต้องทำ · {weekLabel} · {totalWeek} งานในสัปดาห์นี้
+            {mine ? "งานของฉัน" : "ใครมีงานอะไรต้องทำ"} · {weekLabel} · {totalWeek} งานในสัปดาห์นี้
           </p>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          {canFilterMine && (
+            <span className="inline-flex rounded-lg border border-hairline bg-canvas p-0.5">
+              <NavBtn href={teamHref} label="ทั้งทีม" active={!mine} />
+              <NavBtn href={soloHref} label="ของฉัน" active={mine} />
+            </span>
+          )}
           <span className="inline-flex rounded-lg border border-hairline bg-canvas p-0.5">
-            <NavBtn href="/schedule" label="เดือน" />
+            <NavBtn href={withMine("/schedule")} label="เดือน" />
             <span className="rounded-md bg-ink px-3 py-1.5 text-[13px] font-medium text-white">
               สัปดาห์
             </span>
           </span>
           <span className="inline-flex rounded-lg border border-hairline bg-canvas p-0.5">
-            <NavBtn href={`/schedule?view=week&week=${offset - 1}`} label="‹ ก่อนหน้า" />
-            <NavBtn href="/schedule?view=week" label="สัปดาห์นี้" active={offset === 0} />
-            <NavBtn href={`/schedule?view=week&week=${offset + 1}`} label="ถัดไป ›" />
+            <NavBtn href={withMine(`/schedule?view=week&week=${offset - 1}`)} label="‹ ก่อนหน้า" />
+            <NavBtn href={withMine("/schedule?view=week")} label="สัปดาห์นี้" active={offset === 0} />
+            <NavBtn href={withMine(`/schedule?view=week&week=${offset + 1}`)} label="ถัดไป ›" />
           </span>
         </div>
       </div>
