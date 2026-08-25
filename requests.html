@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dodoregis (GAS) - รายการงาน</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="topbar"></div>
+
+<h2>สร้างใบรีเควสใหม่</h2>
+<div class="field-group">
+  <form id="createForm">
+    <label>ชื่อผู้ขอ</label>
+    <input id="requesterName">
+    <label>อีเมลผู้ขอ</label>
+    <input id="requesterEmail" type="email">
+    <label>เบอร์ผู้ขอ</label>
+    <input id="requesterPhone">
+    <label>วันที่รับใบ</label>
+    <input id="receivedDate" type="date">
+    <label>ส่งอะไรมาทดสอบ (test object)</label>
+    <input id="testObject">
+    <label>วัตถุประสงค์ (purpose)</label>
+    <textarea id="purpose"></textarea>
+    <div id="departmentField">
+      <label>แผนก</label>
+      <select id="departmentId"></select>
+    </div>
+    <label>วันที่อยากได้ผล (ไม่การันตี)</label>
+    <input id="desiredDate" type="date">
+    <label style="display:flex;align-items:center;gap:8px;margin-top:14px">
+      <input type="checkbox" id="reportRequired" checked style="width:auto">
+      งานนี้ต้องการรีพอร์ท
+    </label>
+
+    <h2>ชิ้นงาน / รุ่น Lamp</h2>
+    <div id="partsList"></div>
+    <button type="button" class="secondary" onclick="addPartRow()">+ เพิ่มรุ่น</button>
+
+    <div>
+      <button type="submit">สร้างใบรีเควส</button>
+    </div>
+  </form>
+  <p id="createError" class="error"></p>
+  <p id="createOk" class="ok"></p>
+</div>
+
+<h2>รายการใบรีเควสทั้งหมด</h2>
+<table>
+  <thead><tr><th>เลขที่</th><th>Test object</th><th>วันที่รับใบ</th><th># items</th></tr></thead>
+  <tbody id="requestsBody"></tbody>
+</table>
+
+<script src="api.js"></script>
+<script>
+  requireLogin();
+  document.getElementById('topbar').innerHTML = renderTopbar();
+
+  var user = getUser();
+  var partRowCount = 0;
+
+  function addPartRow() {
+    partRowCount++;
+    var div = document.createElement('div');
+    div.className = 'part-row';
+    div.innerHTML =
+      '<input placeholder="Model เช่น P703" class="p-model">' +
+      '<input placeholder="ชื่อชิ้นงาน เช่น LED HL HG" class="p-name">' +
+      '<input placeholder="Part No" class="p-no">' +
+      '<input placeholder="qty" class="p-qty">';
+    document.getElementById('partsList').appendChild(div);
+  }
+  addPartRow();
+
+  async function loadDepartments() {
+    var master = await callApi('listMasterData', {});
+    var sel = document.getElementById('departmentId');
+    sel.innerHTML = master.departments.map(function (d) {
+      return '<option value="' + d.id + '">' + d.name + '</option>';
+    }).join('');
+    if (user.role === 'REQUESTER') {
+      document.getElementById('departmentField').style.display = 'none';
+    }
+  }
+
+  async function loadRequests() {
+    var requests = await callApi('listRequests', {});
+    document.getElementById('requestsBody').innerHTML = requests.map(function (r) {
+      return '<tr>' +
+        '<td><a href="request.html?id=' + r.id + '">' + r.regisNo + '</a></td>' +
+        '<td>' + (r.testObject || '') + '</td>' +
+        '<td>' + (r.receivedDate || '') + '</td>' +
+        '<td>-</td>' +
+        '</tr>';
+    }).join('') || '<tr><td colspan="4">ยังไม่มีใบรีเควส</td></tr>';
+  }
+
+  document.getElementById('createForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    document.getElementById('createError').textContent = '';
+    document.getElementById('createOk').textContent = '';
+    var parts = Array.from(document.querySelectorAll('.part-row')).map(function (row) {
+      return {
+        model: row.querySelector('.p-model').value.trim(),
+        partName: row.querySelector('.p-name').value.trim(),
+        partNo: row.querySelector('.p-no').value.trim(),
+        qty: row.querySelector('.p-qty').value.trim()
+      };
+    }).filter(function (p) { return p.model; });
+
+    var data = {
+      requesterName: document.getElementById('requesterName').value.trim(),
+      requesterEmail: document.getElementById('requesterEmail').value.trim(),
+      requesterPhone: document.getElementById('requesterPhone').value.trim(),
+      receivedDate: document.getElementById('receivedDate').value,
+      testObject: document.getElementById('testObject').value.trim(),
+      purpose: document.getElementById('purpose').value.trim(),
+      departmentId: document.getElementById('departmentId').value,
+      desiredDate: document.getElementById('desiredDate').value,
+      reportRequired: document.getElementById('reportRequired').checked,
+      parts: parts
+    };
+    try {
+      var result = await callApi('createRequest', data);
+      document.getElementById('createOk').textContent = 'สร้างสำเร็จ: ' + result.request.regisNo;
+      document.getElementById('createForm').reset();
+      document.getElementById('partsList').innerHTML = '';
+      addPartRow();
+      loadRequests();
+    } catch (err) {
+      document.getElementById('createError').textContent = err.message;
+    }
+  });
+
+  loadDepartments();
+  loadRequests();
+</script>
+</body>
+</html>

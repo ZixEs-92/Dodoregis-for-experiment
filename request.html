@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dodoregis (GAS) - รายละเอียดใบรีเควส</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="topbar"></div>
+<p><a href="requests.html">&larr; กลับไปรายการใบรีเควส</a></p>
+
+<div id="requestInfo"></div>
+
+<h2>ชิ้นงาน / รุ่น Lamp</h2>
+<table>
+  <thead><tr><th>Model</th><th>ชื่อชิ้นงาน</th><th>Part No</th><th>Qty</th></tr></thead>
+  <tbody id="partsBody"></tbody>
+</table>
+<div class="field-group">
+  <h2 style="margin-top:0">+ เพิ่มรุ่น</h2>
+  <form id="addPartForm">
+    <div class="part-row">
+      <input placeholder="Model" id="newModel" required>
+      <input placeholder="ชื่อชิ้นงาน" id="newPartName">
+      <input placeholder="Part No" id="newPartNo">
+      <input placeholder="qty" id="newQty">
+    </div>
+    <button type="submit">เพิ่ม</button>
+  </form>
+  <p id="addPartError" class="error"></p>
+</div>
+
+<h2>รายการทดสอบ (Test Items)</h2>
+<table>
+  <thead><tr><th>รหัส</th><th>ชื่อรายการ</th><th>สถานะ</th></tr></thead>
+  <tbody id="itemsBody"></tbody>
+</table>
+
+<div class="field-group">
+  <h2 style="margin-top:0">+ เพิ่มรายการทดสอบ</h2>
+  <form id="addItemForm">
+    <label>ชื่อรายการทดสอบ</label>
+    <input id="testName" required>
+    <label>เลือกรุ่นที่จะทดสอบ</label>
+    <div id="partCheckboxes"></div>
+  </form>
+  <button type="submit" form="addItemForm">เพิ่มรายการทดสอบ</button>
+  <p id="addItemError" class="error"></p>
+</div>
+
+<script src="api.js"></script>
+<script>
+  requireLogin();
+  document.getElementById('topbar').innerHTML = renderTopbar();
+
+  var params = new URLSearchParams(location.search);
+  var requestId = params.get('id');
+  var currentParts = [];
+
+  function renderRequestInfo(request) {
+    document.getElementById('requestInfo').innerHTML =
+      '<h1>' + request.regisNo + '</h1>' +
+      '<p class="sub">ผู้ขอ: ' + (request.requesterName || '-') + ' · ' + (request.requesterEmail || '') + '</p>' +
+      '<p>Test object: ' + (request.testObject || '-') + '</p>' +
+      '<p>วัตถุประสงค์: ' + (request.purpose || '-') + '</p>' +
+      (request.desiredDate ? '<p>วันที่อยากได้ผล: ' + request.desiredDate + ' (ไม่การันตี)</p>' : '') +
+      (!request.reportRequired ? '<p><span class="pill">ไม่ต้องการรีพอร์ท — ข้ามขั้นตอนออกรีพอร์ทได้</span></p>' : '');
+  }
+
+  function renderParts(parts) {
+    currentParts = parts;
+    document.getElementById('partsBody').innerHTML = parts.map(function (p) {
+      return '<tr><td>' + p.model + '</td><td>' + (p.partName || '') + '</td><td>' + (p.partNo || '') + '</td><td>' + (p.qty || '') + '</td></tr>';
+    }).join('') || '<tr><td colspan="4">ยังไม่มีรุ่นที่ระบุ</td></tr>';
+
+    document.getElementById('partCheckboxes').innerHTML = parts.map(function (p) {
+      return '<label style="display:flex;align-items:center;gap:8px;font-size:14px;color:#eee">' +
+        '<input type="checkbox" value="' + p.id + '" class="part-check" style="width:auto">' +
+        p.model + (p.partName ? ' · ' + p.partName : '') +
+        '</label>';
+    }).join('');
+  }
+
+  function renderItems(items) {
+    document.getElementById('itemsBody').innerHTML = items.map(function (i) {
+      return '<tr><td><a href="item.html?code=' + i.itemCode + '">' + i.itemCode + '</a></td>' +
+        '<td>' + (i.testName || '') + '</td>' +
+        '<td><span class="pill status-' + i.status + '">' + statusLabel(i.status) + '</span></td></tr>';
+    }).join('') || '<tr><td colspan="3">ยังไม่มีรายการทดสอบ</td></tr>';
+  }
+
+  async function load() {
+    var detail = await callApi('getRequestDetail', { requestId: requestId });
+    renderRequestInfo(detail.request);
+    renderParts(detail.parts);
+    renderItems(detail.items);
+  }
+
+  document.getElementById('addPartForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    document.getElementById('addPartError').textContent = '';
+    try {
+      await callApi('addRequestPart', {
+        requestId: requestId,
+        model: document.getElementById('newModel').value.trim(),
+        partName: document.getElementById('newPartName').value.trim(),
+        partNo: document.getElementById('newPartNo').value.trim(),
+        qty: document.getElementById('newQty').value.trim()
+      });
+      document.getElementById('addPartForm').reset();
+      load();
+    } catch (err) {
+      document.getElementById('addPartError').textContent = err.message;
+    }
+  });
+
+  document.getElementById('addItemForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    document.getElementById('addItemError').textContent = '';
+    var partIds = Array.from(document.querySelectorAll('.part-check:checked')).map(function (c) { return c.value; });
+    var selectedParts = currentParts.filter(function (p) { return partIds.indexOf(String(p.id)) !== -1; });
+    try {
+      await callApi('addItem', {
+        requestId: requestId,
+        testName: document.getElementById('testName').value.trim(),
+        partIds: partIds,
+        model: selectedParts.map(function (p) { return p.model; }).join(' · '),
+        partName: selectedParts.map(function (p) { return p.partName; }).filter(Boolean).join(' · '),
+        partNo: selectedParts.map(function (p) { return p.partNo; }).filter(Boolean).join(' · ')
+      });
+      document.getElementById('addItemForm').reset();
+      load();
+    } catch (err) {
+      document.getElementById('addItemError').textContent = err.message;
+    }
+  });
+
+  load();
+</script>
+</body>
+</html>

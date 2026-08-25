@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dodoregis (GAS) - เข้าสู่ระบบ</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="card">
+  <h1>Dodoregis</h1>
+  <p class="sub">ระบบลงทะเบียนและติดตามงานทดสอบ — Google Apps Script edition</p>
+  <form id="loginForm">
+    <label>Username</label>
+    <input id="username" autocapitalize="off" autocomplete="username" required>
+    <label>Password</label>
+    <input id="password" type="password" autocomplete="current-password" required>
+    <button type="submit">เข้าสู่ระบบ</button>
+  </form>
+  <p id="error" class="error"></p>
+</div>
+<script src="api.js"></script>
+<script>
+  if (getToken()) location.href = 'requests.html';
+
+  document.getElementById('loginForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var username = document.getElementById('username').value.trim();
+    var password = document.getElementById('password').value;
+    document.getElementById('error').textContent = '';
+    try {
+      await apiLogin(username, password);
+      location.href = 'requests.html';
+    } catch (err) {
+      document.getElementById('error').textContent = err.message;
+    }
+  });
+</script>
+</body>
+</html>

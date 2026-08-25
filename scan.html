@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dodoregis (GAS) - สแกน QR</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="topbar"></div>
+<h1>สแกน QR</h1>
+<div id="status" class="sub">กดปุ่มด้านล่างเพื่อขอสิทธิ์กล้อง...</div>
+<div>
+  <button id="startBack">เปิดกล้องหลัง</button>
+  <button id="startFront" class="secondary">เปิดกล้องหน้า</button>
+  <button id="stop" class="secondary">หยุด</button>
+</div>
+<div style="position:relative;max-width:480px">
+  <video id="video" playsinline autoplay muted></video>
+  <canvas id="overlay" class="scan-canvas" style="position:absolute;top:0;left:0;pointer-events:none"></canvas>
+</div>
+
+<script src="api.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script>
+  requireLogin();
+  document.getElementById('topbar').innerHTML = renderTopbar();
+
+  var statusEl = document.getElementById('status');
+  var video = document.getElementById('video');
+  var overlay = document.getElementById('overlay');
+  var ctx = overlay.getContext('2d');
+  var stream = null, rafId = null, scanning = false;
+
+  function setStatus(msg) { statusEl.textContent = msg; }
+
+  async function startCamera(facingMode) {
+    stopCamera();
+    setStatus('กำลังขอสิทธิ์กล้อง...');
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: facingMode } }, audio: false });
+      video.srcObject = stream;
+      await video.play();
+      setStatus('กล้องเปิดแล้ว — กำลังสแกน...');
+      scanning = true;
+      tick();
+    } catch (err) {
+      setStatus('ขอกล้องไม่สำเร็จ: ' + err.name + ' — ' + err.message);
+    }
+  }
+
+  function stopCamera() {
+    scanning = false;
+    if (rafId) cancelAnimationFrame(rafId);
+    if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
+  }
+
+  function tick() {
+    if (!scanning) return;
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      overlay.width = video.videoWidth;
+      overlay.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, overlay.width, overlay.height);
+      var imageData = ctx.getImageData(0, 0, overlay.width, overlay.height);
+      var code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+      if (code && code.data) {
+        scanning = false;
+        setStatus('พบ QR: ' + code.data + ' — กำลังเปิดหน้ารายการทดสอบ...');
+        stopCamera();
+        location.href = 'item.html?code=' + encodeURIComponent(code.data);
+        return;
+      }
+    }
+    rafId = requestAnimationFrame(tick);
+  }
+
+  document.getElementById('startBack').onclick = function () { startCamera('environment'); };
+  document.getElementById('startFront').onclick = function () { startCamera('user'); };
+  document.getElementById('stop').onclick = function () { stopCamera(); setStatus('หยุดกล้องแล้ว'); };
+</script>
+</body>
+</html>

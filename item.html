@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dodoregis (GAS) - รายการทดสอบ</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js"></script>
+</head>
+<body>
+<div id="topbar"></div>
+<p id="backLink"></p>
+
+<div id="itemInfo"></div>
+<canvas id="qrCanvas"></canvas>
+
+<div class="field-group">
+  <h2 style="margin-top:0">เปลี่ยนสถานะ</h2>
+  <form id="statusForm">
+    <label>เปลี่ยนสถานะเป็น</label>
+    <select id="target">
+      <option value="S1_RECEIVED">1-รับใบรีเควส</option>
+      <option value="S2_WAITING_PART">2-รอรับพาร์ท</option>
+      <option value="S3_PART_RECEIVED">3-รับพาร์ทแล้ว/รอคิวเทส</option>
+      <option value="S4_TESTING">4-กำลังเทส</option>
+      <option value="S5_DONE_TESTING">5-เทสเสร็จ</option>
+      <option value="S6_REPORTING">6-กำลังทำรีพอร์ท</option>
+      <option value="S7_SENT">7-ส่งรีพอร์ทแล้ว</option>
+      <option value="S8_CLOSED">8-ปิดงาน</option>
+      <option value="S9_HOLD">9-Hold</option>
+      <option value="S10_CANCEL">10-Cancel</option>
+    </select>
+
+    <label>วันที่รับพาร์ท (จำเป็นตอนเข้าสถานะ 3)</label>
+    <input type="date" id="partReceivedDate">
+    <label>ตำแหน่งเก็บพาร์ท (จำเป็นตอนเข้าสถานะ 3)</label>
+    <input id="partLocation">
+
+    <label>วันที่ส่งรีพอร์ท (จำเป็นตอนเข้าสถานะ 7 ถ้าใบนี้ต้องการรีพอร์ท)</label>
+    <input type="date" id="sentDate">
+    <label>ลิงก์รีพอร์ท</label>
+    <input id="reportUrl">
+    <label>หรือส่งให้ใคร (ใช้แทนลิงก์ได้)</label>
+    <input id="sentTo">
+
+    <label>ที่เก็บชิ้นงาน (จำเป็นตอนเข้าสถานะ 8)</label>
+    <input id="finishedLocation">
+    <label>ที่เก็บ raw data (จำเป็นตอนเข้าสถานะ 8)</label>
+    <input id="rawDataLocation">
+
+    <label>หมายเหตุ</label>
+    <input id="note">
+
+    <button type="submit">บันทึกการเปลี่ยนสถานะ</button>
+  </form>
+  <p id="statusError" class="error"></p>
+  <p id="statusOk" class="ok"></p>
+</div>
+
+<h2>ประวัติสถานะ</h2>
+<div id="statusLogs"></div>
+
+<h2>ประวัติที่เก็บ</h2>
+<div id="locationLogs"></div>
+
+<script src="api.js"></script>
+<script>
+  requireLogin();
+  document.getElementById('topbar').innerHTML = renderTopbar();
+
+  var params = new URLSearchParams(location.search);
+  var itemCode = params.get('code');
+  var currentRequestId = null;
+  var currentItem = null;
+
+  function render(detail) {
+    var item = detail.item;
+    currentItem = item;
+    currentRequestId = item.requestId;
+    document.getElementById('backLink').innerHTML = '<a href="request.html?id=' + item.requestId + '">&larr; กลับไปใบรีเควส ' + detail.request.regisNo + '</a>';
+
+    document.getElementById('itemInfo').innerHTML =
+      '<h1>' + item.itemCode + '</h1>' +
+      '<p>' + (item.testName || '') + '</p>' +
+      '<p>ชิ้นงาน: ' + item.model + (item.partName ? ' · ' + item.partName : '') + '</p>' +
+      '<p>สถานะปัจจุบัน: <span class="pill status-' + item.status + '">' + statusLabel(item.status) + '</span></p>' +
+      (item.partLocation ? '<p>ที่เก็บพาร์ท: ' + item.partLocation + '</p>' : '') +
+      (item.finishedLocation ? '<p>ที่เก็บชิ้นงาน: ' + item.finishedLocation + '</p>' : '') +
+      (item.rawDataLocation ? '<p>ที่เก็บ raw data: ' + item.rawDataLocation + '</p>' : '') +
+      (detail.report && detail.report.reportUrl ? '<p>รีพอร์ท: <a href="' + detail.report.reportUrl + '" target="_blank">เปิดลิงก์</a></p>' : '') +
+      (detail.report && detail.report.sentTo ? '<p>ส่งให้: ' + detail.report.sentTo + '</p>' : '');
+
+    QRCode.toCanvas(document.getElementById('qrCanvas'), item.itemCode, { width: 180 });
+
+    document.getElementById('statusLogs').innerHTML = detail.statusLogs.map(function (l) {
+      return '<div class="log-item">' + l.changedAt + ' — ' + l.changedBy + ': ' +
+        (l.fromStatus ? statusLabel(l.fromStatus) + ' → ' : '') + statusLabel(l.toStatus) +
+        (l.note ? ' (' + l.note + ')' : '') + '</div>';
+    }).join('') || '<p class="sub">ยังไม่มีประวัติ</p>';
+
+    document.getElementById('locationLogs').innerHTML = detail.locationLogs.map(function (l) {
+      return '<div class="log-item">' + l.changedAt + ' — ' + l.changedBy + ': ' + l.kind + ' = ' + l.location + '</div>';
+    }).join('') || '<p class="sub">ยังไม่มีประวัติ</p>';
+  }
+
+  async function load() {
+    var detail = await callApi('getItemDetail', { itemCode: itemCode });
+    render(detail);
+  }
+
+  document.getElementById('statusForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    document.getElementById('statusError').textContent = '';
+    document.getElementById('statusOk').textContent = '';
+    var data = {
+      itemId: currentItem.id,
+      target: document.getElementById('target').value,
+      partReceivedDate: document.getElementById('partReceivedDate').value,
+      partLocation: document.getElementById('partLocation').value.trim(),
+      sentDate: document.getElementById('sentDate').value,
+      reportUrl: document.getElementById('reportUrl').value.trim(),
+      sentTo: document.getElementById('sentTo').value.trim(),
+      finishedLocation: document.getElementById('finishedLocation').value.trim(),
+      rawDataLocation: document.getElementById('rawDataLocation').value.trim(),
+      note: document.getElementById('note').value.trim()
+    };
+    try {
+      var updated = await callApi('changeItemStatus', data);
+      document.getElementById('statusOk').textContent = 'บันทึกสำเร็จ';
+      render(updated);
+    } catch (err) {
+      document.getElementById('statusError').textContent = err.message;
+    }
+  });
+
+  load();
+</script>
+</body>
+</html>
